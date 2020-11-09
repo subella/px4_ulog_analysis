@@ -18,6 +18,7 @@ import seaborn as sns
 import pandas as pd
 import pathlib
 import bisect
+
 sns.set()
 
 log_dir = pathlib.Path("../logs").resolve()
@@ -34,7 +35,9 @@ show_all = False
 result_dir = pathlib.Path("../log_output").resolve()
 message_csvs = list(result_dir.glob("{}*".format(file_to_use.stem)))
 message_offset = len(file_to_use.stem) + 1
-data_frames = {filename.stem[message_offset:]: pd.read_csv(filename) for filename in message_csvs}
+data_frames = {
+    filename.stem[message_offset:]: pd.read_csv(filename) for filename in message_csvs
+}
 first_timestamp = data_frames["input_rc_0"].iloc[0]["timestamp"]
 
 # +
@@ -81,15 +84,21 @@ else:
     des_end = bisect.bisect_left(local_pose_sp_df["times"], end_time) - 1
     actual_df = local_pose_df.iloc[act_start:act_end]
     desired_df = local_pose_sp_df.iloc[des_start:des_end]
-    
+
 colors = sns.color_palette()
 
 plt.plot(actual_df["times"], actual_df["x"], label="x", c=colors[0])
 plt.plot(actual_df["times"], actual_df["y"], label="y", c=colors[1])
 plt.plot(actual_df["times"], actual_df["z"], label="z", c=colors[2])
-plt.plot(desired_df["times"], desired_df["x"], label="x (setpoint)", c=colors[0], ls="--")
-plt.plot(desired_df["times"], desired_df["y"], label="y (setpoint)", c=colors[1], ls="--")
-plt.plot(desired_df["times"], desired_df["z"], label="z (setpoint)", c=colors[2], ls="--")
+plt.plot(
+    desired_df["times"], desired_df["x"], label="x (setpoint)", c=colors[0], ls="--"
+)
+plt.plot(
+    desired_df["times"], desired_df["y"], label="y (setpoint)", c=colors[1], ls="--"
+)
+plt.plot(
+    desired_df["times"], desired_df["z"], label="z (setpoint)", c=colors[2], ls="--"
+)
 
 for killtime in killtimes:
     if killtime < end_time:
@@ -112,17 +121,41 @@ else:
     des_end = bisect.bisect_left(attitude_sp_df["times"], end_time) - 1
     actual_df = attitude_df.iloc[act_start:act_end]
     desired_df = attitude_sp_df.iloc[des_start:des_end]
-    
+
 colors = sns.color_palette()
 
 plt.plot(actual_df["times"], actual_df["q[0]"], label="qw", c=colors[0])
 plt.plot(actual_df["times"], actual_df["q[1]"], label="qx", c=colors[1])
 plt.plot(actual_df["times"], actual_df["q[2]"], label="qy", c=colors[2])
 plt.plot(actual_df["times"], actual_df["q[3]"], label="qz", c=colors[3])
-plt.plot(desired_df["times"], desired_df["q_d[0]"], label="qw (setpoint)", c=colors[0], ls="--")
-plt.plot(desired_df["times"], desired_df["q_d[1]"], label="qx (setpoint)", c=colors[1], ls="--")
-plt.plot(desired_df["times"], desired_df["q_d[2]"], label="qy (setpoint)", c=colors[2], ls="--")
-plt.plot(desired_df["times"], desired_df["q_d[3]"], label="qz (setpoint)", c=colors[3], ls="--")
+plt.plot(
+    desired_df["times"],
+    desired_df["q_d[0]"],
+    label="qw (setpoint)",
+    c=colors[0],
+    ls="--",
+)
+plt.plot(
+    desired_df["times"],
+    desired_df["q_d[1]"],
+    label="qx (setpoint)",
+    c=colors[1],
+    ls="--",
+)
+plt.plot(
+    desired_df["times"],
+    desired_df["q_d[2]"],
+    label="qy (setpoint)",
+    c=colors[2],
+    ls="--",
+)
+plt.plot(
+    desired_df["times"],
+    desired_df["q_d[3]"],
+    label="qz (setpoint)",
+    c=colors[3],
+    ls="--",
+)
 
 for killtime in killtimes:
     if killtime < end_time:
@@ -145,15 +178,21 @@ else:
     des_end = bisect.bisect_left(local_pose_sp_df["times"], end_time) - 1
     actual_df = local_pose_df.iloc[act_start:act_end]
     desired_df = local_pose_sp_df.iloc[des_start:des_end]
-    
+
 colors = sns.color_palette()
 
 plt.plot(actual_df["times"], actual_df["vx"], label="vx", c=colors[0])
 plt.plot(actual_df["times"], actual_df["vy"], label="vy", c=colors[1])
 plt.plot(actual_df["times"], actual_df["vz"], label="vz", c=colors[2])
-plt.plot(desired_df["times"], desired_df["vx"], label="vx (setpoint)", c=colors[0], ls="--")
-plt.plot(desired_df["times"], desired_df["vy"], label="vy (setpoint)", c=colors[1], ls="--")
-plt.plot(desired_df["times"], desired_df["vz"], label="vz (setpoint)", c=colors[2], ls="--")
+plt.plot(
+    desired_df["times"], desired_df["vx"], label="vx (setpoint)", c=colors[0], ls="--"
+)
+plt.plot(
+    desired_df["times"], desired_df["vy"], label="vy (setpoint)", c=colors[1], ls="--"
+)
+plt.plot(
+    desired_df["times"], desired_df["vz"], label="vz (setpoint)", c=colors[2], ls="--"
+)
 
 for killtime in killtimes:
     if killtime < end_time:
@@ -176,14 +215,32 @@ else:
     des_end = bisect.bisect_left(attitude_sp_df["times"], end_time) - 1
     actual_df = attitude_df.iloc[act_start:act_end]
     desired_df = attitude_sp_df.iloc[des_start:des_end]
-    
+
 colors = sns.color_palette()
 plt.plot(actual_df["times"], actual_df["rollspeed"], label="x", c=colors[0])
 plt.plot(actual_df["times"], actual_df["pitchspeed"], label="y", c=colors[1])
 plt.plot(actual_df["times"], actual_df["yawspeed"], label="z", c=colors[2])
-plt.plot(desired_df["times"], desired_df["angle_vel_x"], label="x (setpoint)", c=colors[0], ls="--")
-plt.plot(desired_df["times"], desired_df["angle_vel_y"], label="y (setpoint)", c=colors[1], ls="--")
-plt.plot(desired_df["times"], desired_df["angle_vel_z"], label="z (setpoint)", c=colors[2], ls="--")
+plt.plot(
+    desired_df["times"],
+    desired_df["angle_vel_x"],
+    label="x (setpoint)",
+    c=colors[0],
+    ls="--",
+)
+plt.plot(
+    desired_df["times"],
+    desired_df["angle_vel_y"],
+    label="y (setpoint)",
+    c=colors[1],
+    ls="--",
+)
+plt.plot(
+    desired_df["times"],
+    desired_df["angle_vel_z"],
+    label="z (setpoint)",
+    c=colors[2],
+    ls="--",
+)
 
 for killtime in killtimes:
     if killtime < end_time:
@@ -203,7 +260,7 @@ else:
     act_start = bisect.bisect_left(actuator_df["times"], start_time) - 1
     act_end = bisect.bisect_left(actuator_df["times"], end_time)
     actual_df = actuator_df.iloc[act_start:act_end]
-  
+
 colors = sns.color_palette()
 plt.plot(actual_df["times"], actual_df["control[0]"], label="roll", c=colors[0])
 plt.plot(actual_df["times"], actual_df["control[1]"], label="pitch", c=colors[1])
@@ -220,6 +277,3 @@ plt.ylabel("Actuator Command")
 plt.legend()
 plt.gcf().set_size_inches([12, 6])
 plt.show()
-# -
-
-
