@@ -22,7 +22,6 @@ import subprocess
 import numpy as np
 import functools
 
-sns.set()
 
 # +
 MESSAGES = [
@@ -132,73 +131,152 @@ def lookup_time_index(df, t):
         return idx - 1
 
 
-def get_landing_bounds(dataframes, velocity, padding=1.0, num_devs=10.0):
+def get_landing_bounds(dataframes, accelerations, velocities, stop_threshold=0.3):
     """Check for when landing happened."""
-    acceleration = get_array_values(dfs["imu"], "accelerometer_m_s2", (3,))
-    acceleration_norm = np.linalg.norm(acceleration, axis=1)
-    mean, std = np.mean(acceleration_norm), np.std(acceleration_norm)
+    acceleration_norm = np.linalg.norm(accelerations, axis=1)
+    max_idx = np.argmax(acceleration_norm)
 
-    land_threshold = mean + num_devs * std
-    for i, norm in enumerate(acceleration_norm):
-        if norm > land_threshold:
-            return (
-                dfs["imu"]["times"].iloc[i] - padding,
-                dfs["imu"]["times"].iloc[i] + padding,
-            )
+    start = dataframes["imu"]["times"].iloc[max_idx]
+    end = dataframes["imu"]["times"].iloc[-1]
 
-    raise RuntimeError("Failed to find landing.")
+    vel_start_idx = lookup_time_index(dataframes["position"], start)
+    for i in range(vel_start_idx, velocities.shape[0]):
+        if np.linalg.norm(velocities[i, :]) < stop_threshold:
+            end = dataframes["position"]["times"].iloc[i]
+            break
+
+    return start, end
+
+
+def plot_landing_velocity(ax, dataframes, velocities, bounds, padding=1.0):
+    """Show the velocity of the drone during landing."""
+    vel_norm = np.linalg.norm(velocities, axis=1)
+    vel_start = lookup_time_index(dfs["position"], bounds[0] - padding)
+    vel_end = lookup_time_index(dfs["position"], bounds[1] + padding)
+    vel_times = dfs["position"].iloc[vel_start:vel_end]["times"] - (bounds[0] - padding)
+
+    ax.plot(vel_times, vel_norm[vel_start:vel_end], label="norm", marker="+")
+    ax.plot(vel_times, velocities[vel_start:vel_end, 1], label="y", marker="+")
+    ax.plot(vel_times, velocities[vel_start:vel_end, 2], label="z", marker="+")
+    ax.axvline(padding, label="landing start", ls="--", c="k")
+    ax.axvline(bounds[1] - bounds[0] + padding, label="landing end", ls="--", c="k")
+
+    ax.legend()
+    ax.set_title("Landing Velocity")
+    ax.set_xlabel("Time (seconds)")
+    ax.set_ylabel("Velocity (m/s)")
+
+
+def plot_landing_acceleration(ax, dataframes, accelerations, bounds, padding=1.0):
+    """Show the acceleration of the drone during landing."""
+    acceleration_norm = np.linalg.norm(accelerations, axis=1)
+    acc_start = lookup_time_index(dfs["imu"], bounds[0] - padding)
+    acc_end = lookup_time_index(dfs["imu"], bounds[1] + padding)
+    acc_times = dfs["imu"].iloc[acc_start:acc_end]["times"] - (bounds[0] - padding)
+    ax.plot(acc_times, acceleration_norm[acc_start:acc_end], label="norm", marker="+")
+    ax.axvline(padding, label="landing start", ls="--", c="k")
+    ax.axvline(bounds[1] - bounds[0] + padding, label="landing end", ls="--", c="k")
+
+    ax.legend()
+    ax.set_title("Acceleration Norm")
+    ax.set_xlabel("Time (seconds)")
+    ax.set_ylabel("Acceleration (m/s^2)")
+
+
+def create_trial_summary(dataframes, stop_threshold=0.3, padding=1.0):
+    """Make a numpy array out of the trial."""
+    velocities = get_field_values(dataframes["position"], ["vx", "vy", "vz"], (3,))
+    accelerations = get_array_values(dataframes["imu"], "accelerometer_m_s2", (3,))
+
+    time_range = get_landing_bounds(
+        dataframes, accelerations, velocities, stop_threshold=stop_threshold
+    )
+
+    vel_norm = np.linalg.norm(velocities, axis=1)
+    vel_start = lookup_time_index(dataframes["position"], time_range[0] - padding)
+    vel_end = lookup_time_index(dataframes["position"], time_range[1] + padding)
+    vel_times = dataframes["position"].iloc[vel_start:vel_end]["times"] - (
+        time_range[0] - padding
+    )
+
+    acceleration_norm = np.linalg.norm(accelerations, axis=1)
+    acc_start = lookup_time_index(dataframes["imu"], time_range[0] - padding)
+    acc_end = lookup_time_index(dataframes["imu"], time_range[1] + padding)
+    acc_times = dataframes["imu"].iloc[acc_start:acc_end]["times"] - (
+        time_range[0] - padding
+    )
+
+    vel_results = np.zeros((vel_end - vel_start, 4))
+    vel_results[:, 0] = vel_times
+    vel_results[:, 1] = velocities[vel_start:vel_end, 1]
+    vel_results[:, 2] = velocities[vel_start:vel_end, 2]
+    vel_results[:, 3] = vel_norm[vel_start:vel_end]
+
+    acc_results = np.zeros((acc_end - acc_start, 2))
+    acc_results[:, 0] = acc_times
+    acc_results[:, 1] = acceleration_norm[acc_start:acc_end]
+
+    return (padding, time_range[1] - time_range[0] + padding), vel_results, acc_results
 
 
 # +
-log_location = "../landing_experiments"
+naive_log_location = "../naive_landing_trials"
+optimal_log_location = "../optimal_landing_trials"
 result_location = "../log_output"
 
-padding = 1.0
-num_devs = 10.0
+padding = 0.4
+stop_threshold = 0.3
+index = -1
 
 result_dir = pathlib.Path(result_location).resolve()
-log_files = get_files(log_location)
+naive_files = get_files(naive_log_location)
+optimal_files = get_files(optimal_log_location)
 
-dfs = get_dataframes(result_dir, log_files[-8])
-velocity = get_field_values(dfs["position"], ["vx", "vy", "vz"], (3,))
-acceleration = get_array_values(dfs["imu"], "accelerometer_m_s2", (3,))
-acceleration_norm = np.linalg.norm(acceleration, axis=1)
+naive_dfs = [get_dataframes(result_dir, filename) for filename in naive_files]
+optimal_dfs = [get_dataframes(result_dir, filename) for filename in optimal_files]
 
-time_range = get_landing_bounds(dfs, velocity, padding=padding, num_devs=num_devs)
+naive_results = [
+    create_trial_summary(dfs, stop_threshold=stop_threshold, padding=padding) for dfs in naive_dfs
+]
+optimal_results = [
+    create_trial_summary(dfs, stop_threshold=stop_threshold, padding=padding) for dfs in optimal_dfs
+]
 
 
 # +
-fig, ax = plt.subplots(2, 1)
 
-vel_norm = np.linalg.norm(velocity, axis=1)
-vel_start = lookup_time_index(dfs["position"], time_range[0])
-vel_end = lookup_time_index(dfs["position"], time_range[1])
-vel_times = dfs["position"].iloc[vel_start:vel_end]["times"]
+sns.set()
+sns.set_style("whitegrid")
 
-ax[0].plot(vel_times, vel_norm[vel_start:vel_end], label="norm", marker="+")
-ax[0].plot(vel_times, velocity[vel_start:vel_end, 1], label="y", marker="+")
-ax[0].plot(vel_times, velocity[vel_start:vel_end, 2], label="z", marker="+")
-ax[0].axvline(time_range[0] + padding, label="landing start", ls="--", c="k")
+def plot_trials(ax, results, kind, color, dim):
+    """Plot some info."""
+    titles = ["Y Velocity", "Z Velocity", "Velocity Norm", "Acceleration Norm"]
+    y_labels = ["Velocity (m/s)", "Velocity (m/s)", "Velocity (m/s)", "Acceleration (m/s^2)"]
 
-ax[0].legend()
-ax[0].set_title("Velocity")
-ax[0].set_xlabel("Time (seconds)")
-ax[0].set_ylabel("Velocity (m/s)")
+    bounds = results[0][0]
+    ax.axvline(bounds[0], label="landing start", ls="--", c="k", alpha=0.4)
 
-acc_start = lookup_time_index(dfs["imu"], time_range[0])
-acc_end = lookup_time_index(dfs["imu"], time_range[1])
-acc_times = dfs["imu"].iloc[acc_start:acc_end]["times"]
-ax[1].plot(acc_times, acceleration_norm[acc_start:acc_end], label="norm", marker="+")
-ax[1].axvline(time_range[0] + padding, label="landing start", ls="--", c="k")
+    result_index = 1 if dim < 3 else 2
+    offset = 1 if dim < 3 else -2
+    for result in results:
+        ax.plot(result[result_index][:, 0], result[result_index][:, dim + offset], c=color, alpha=0.8, label=kind)
 
-ax[1].legend()
-ax[1].set_title("Acceleration Norm")
-ax[1].set_xlabel("Time (seconds)")
-ax[1].set_ylabel("Acceleration (m/s^2)")
+    ax.set_title(titles[dim])
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel(y_labels[dim])
+    ax.legend()
 
-fig.set_size_inches([15, 8])
+
+colors = sns.color_palette()
+
+fig, ax = plt.subplots(4, 1, sharex=True)
+
+for i in range(4):
+    plot_trials(ax[i], naive_results, "naive", colors[0], i)
+    plot_trials(ax[i], optimal_results, "optimal", colors[1], i)
+
+fig.set_size_inches([10, 20])
 plt.tight_layout()
 plt.show()
 # -
-
 

@@ -22,7 +22,7 @@ import subprocess
 
 sns.set()
 
-log_dir = pathlib.Path("../adaptive_trials").resolve()
+log_dir = pathlib.Path("../11_10_grasping").resolve()
 log_files = sorted(list(log_dir.glob("*.ulg")))
 messages = [
     "vehicle_local_position",
@@ -35,7 +35,7 @@ messages = [
 message_args = ",".join(messages)
 
 show_all = False
-file_to_use = log_files[-1]
+file_to_use = log_files[-19]
 padding = 1.0
 print("Opening {}".format(file_to_use))
 
@@ -120,7 +120,6 @@ else:
     end_time = get_df(data_frames, "vehicle_attitude_0", first_timestamp).iloc[-1][
         "times"
     ]
-    print(start_time, end_time)
 
 local_pose_df = get_df(data_frames, "vehicle_local_position_0", first_timestamp)
 attitude_df = get_df(data_frames, "vehicle_attitude_0", first_timestamp)
