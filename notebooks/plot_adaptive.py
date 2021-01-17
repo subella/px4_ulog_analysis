@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.6.0
+#       jupytext_version: 1.7.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -22,7 +22,7 @@ import subprocess
 
 sns.set()
 
-log_dir = pathlib.Path("../11_10_grasping").resolve()
+log_dir = pathlib.Path("../downdraft_testing").resolve()
 log_files = sorted(list(log_dir.glob("*.ulg")))
 messages = [
     "vehicle_local_position",
@@ -35,7 +35,7 @@ messages = [
 message_args = ",".join(messages)
 
 show_all = False
-file_to_use = log_files[-19]
+file_to_use = log_files[-4]
 padding = 1.0
 print("Opening {}".format(file_to_use))
 
@@ -100,6 +100,7 @@ def plot_adaptive(ax, df, labels, start=0.0, end=1000.0, vel=False):
 
 
 # +
+min_start_time = 0.0
 input_df = get_df(data_frames, "position_setpoint_triplet_0", first_timestamp)
 
 trajectory_times = []
@@ -107,6 +108,7 @@ for i, time in enumerate(input_df["times"]):
     if (
         input_df.iloc[i]["current.type"] == 0
         and input_df.iloc[i]["current.velocity_valid"]
+        and time > min_start_time
     ):
         trajectory_times.append(time)
 
