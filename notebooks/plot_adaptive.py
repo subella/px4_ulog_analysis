@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.7.1
+#       jupytext_version: 1.9.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -22,7 +22,7 @@ import subprocess
 
 sns.set()
 
-log_dir = pathlib.Path("../downdraft_testing").resolve()
+log_dir = pathlib.Path("../new_grasp_tests").resolve()
 log_files = sorted(list(log_dir.glob("*.ulg")))
 messages = [
     "vehicle_local_position",
@@ -31,18 +31,19 @@ messages = [
     "vehicle_attitude",
     "vehicle_attitude_setpoint",
     "vehicle_rates_setpoint",
+    "actuator_outputs"
 ]
 message_args = ",".join(messages)
 
 show_all = False
 file_to_use = log_files[-4]
-padding = 1.0
+padding = 4.0
 print("Opening {}".format(file_to_use))
 
 # +
 result_dir = pathlib.Path("../log_output").resolve()
 message_csvs = list(result_dir.glob("{}*".format(file_to_use.stem)))
-if len(message_csvs) == 0:
+if len(message_csvs) != len(messages):
     subprocess.call(
         ["ulog2csv", str(file_to_use), "-o", str(result_dir), "-m", message_args]
     )
@@ -130,9 +131,10 @@ local_pose_sp_df = get_df(
 )
 attitude_sp_df = get_df(data_frames, "vehicle_attitude_setpoint_0", first_timestamp)
 attitude_output_df = get_df(data_frames, "vehicle_rates_setpoint_0", first_timestamp)
+actuator_output_df = get_df(data_frames, "actuator_outputs_0", first_timestamp)
 
 # +
-fig, ax = plt.subplots(3, 2)
+fig, ax = plt.subplots(4, 2)
 
 plot_sp(
     ax[0][0],
@@ -215,9 +217,40 @@ ax[2][1].legend()
 ax[2][1].set_xlabel("Time (seconds)")
 ax[2][1].set_ylabel("Moment (kg * rad/s^2)")
 
-fig.set_size_inches([15, 18])
+if "ge_x" in attitude_sp_df.columns:
+    plot_adaptive(
+        ax[3][0],
+        attitude_output_df,
+        ["ge_x", "ge_y", "ge_z"],
+        start=start_time,
+        end=end_time,
+    )
+ax[3][0].set_title("Ground Effect Term")
+ax[3][0].legend()
+ax[3][0].set_xlabel("Time (seconds)")
+ax[3][0].set_ylabel("Force (N)")
+
+plot_adaptive(
+    ax[3][1],
+    actuator_output_df,
+    ["output[0]", "output[1]", "output[2]", "output[3]"],
+    start=start_time,
+    end=end_time,
+    vel=True,
+)
+
+ax[3][1].set_title("PWM Values")
+ax[3][1].legend()
+ax[3][1].set_xlabel("Time (seconds)")
+ax[3][1].set_ylabel("PWM Value")
+
+fig.set_size_inches([15, 22])
 plt.show()
 # -
+
+fig, ax = plt.subplots()
+fig.set_size_inches([12, 6])
+plt.show()
 
 fig, ax = plt.subplots()
 plot_adaptive(
