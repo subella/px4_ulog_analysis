@@ -22,7 +22,7 @@ import subprocess
 
 sns.set()
 
-log_dir = pathlib.Path("../new_grasp_tests").resolve()
+log_dir = pathlib.Path("../02_10_21_grasping").resolve()
 log_files = sorted(list(log_dir.glob("*.ulg")))
 messages = [
     "vehicle_local_position",
@@ -36,8 +36,10 @@ messages = [
 message_args = ",".join(messages)
 
 show_all = False
-file_to_use = log_files[-4]
-padding = 4.0
+show_adap_vel = True
+show_legends = True
+file_to_use = log_files[-1]
+padding = 8.0
 print("Opening {}".format(file_to_use))
 
 # +
@@ -124,6 +126,7 @@ else:
         "times"
     ]
 
+
 local_pose_df = get_df(data_frames, "vehicle_local_position_0", first_timestamp)
 attitude_df = get_df(data_frames, "vehicle_attitude_0", first_timestamp)
 local_pose_sp_df = get_df(
@@ -146,7 +149,6 @@ plot_sp(
     end=end_time,
 )
 ax[0][0].set_title("Position Control")
-ax[0][0].legend()
 ax[0][0].set_xlabel("Time (seconds)")
 ax[0][0].set_ylabel("Position (meters)")
 
@@ -160,7 +162,6 @@ plot_sp(
     end=end_time,
 )
 ax[0][1].set_title("Velocity Control")
-ax[0][1].legend()
 ax[0][1].set_xlabel("Time (seconds)")
 ax[0][1].set_ylabel("Velocity (meters/second)")
 
@@ -174,7 +175,6 @@ plot_sp(
     end=end_time,
 )
 ax[1][0].set_title("Attitude Control")
-ax[1][0].legend()
 ax[1][0].set_xlabel("Time (seconds)")
 ax[1][0].set_ylabel("Attitude (radians)")
 
@@ -188,7 +188,6 @@ plot_sp(
     end=end_time,
 )
 ax[1][1].set_title("Angular Velocity Control")
-ax[1][1].legend()
 ax[1][1].set_xlabel("Time (seconds)")
 ax[1][1].set_ylabel("Angular Velocity (radians/second)")
 
@@ -201,7 +200,6 @@ plot_adaptive(
 )
 
 ax[2][0].set_title("Adaptive Term (Position)")
-ax[2][0].legend()
 ax[2][0].set_xlabel("Time (seconds)")
 ax[2][0].set_ylabel("Force (kg * m/s^2)")
 
@@ -213,20 +211,18 @@ plot_adaptive(
     end=end_time,
 )
 ax[2][1].set_title("Adaptive Term (Attitude)")
-ax[2][1].legend()
 ax[2][1].set_xlabel("Time (seconds)")
 ax[2][1].set_ylabel("Moment (kg * rad/s^2)")
 
 if "ge_x" in attitude_sp_df.columns:
     plot_adaptive(
         ax[3][0],
-        attitude_output_df,
+        attitude_sp_df,
         ["ge_x", "ge_y", "ge_z"],
         start=start_time,
         end=end_time,
     )
 ax[3][0].set_title("Ground Effect Term")
-ax[3][0].legend()
 ax[3][0].set_xlabel("Time (seconds)")
 ax[3][0].set_ylabel("Force (N)")
 
@@ -240,26 +236,36 @@ plot_adaptive(
 )
 
 ax[3][1].set_title("PWM Values")
-ax[3][1].legend()
 ax[3][1].set_xlabel("Time (seconds)")
 ax[3][1].set_ylabel("PWM Value")
+
+if show_legends:
+    ax[0][0].legend()
+    ax[0][1].legend()
+    ax[1][0].legend()
+    ax[1][1].legend()
+    ax[2][0].legend()
+    ax[2][1].legend()
+    ax[3][0].legend()
+    ax[3][1].legend()
 
 fig.set_size_inches([15, 22])
 plt.show()
 # -
 
-fig, ax = plt.subplots()
-fig.set_size_inches([12, 6])
-plt.show()
+if show_adap_vel:
+    fig, ax = plt.subplots()
+    plot_adaptive(
+        ax,
+        attitude_sp_df,
+        ["adap_vx", "adap_vy", "adap_vz"],
+        start=start_time,
+        end=end_time,
+        vel=True,
+    )
+    fig.set_size_inches([12, 6])
+    plt.show()
 
-fig, ax = plt.subplots()
-plot_adaptive(
-    ax,
-    attitude_sp_df,
-    ["adap_vx", "adap_vy", "adap_vz"],
-    start=start_time,
-    end=end_time,
-    vel=True,
-)
-fig.set_size_inches([12, 6])
-plt.show()
+sns.palplot(sns.color_palette())
+
+
