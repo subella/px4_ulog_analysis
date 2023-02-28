@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.13.7
+#       jupytext_version: 1.9.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -22,7 +22,7 @@ import subprocess
 
 sns.set()
 
-log_dir = pathlib.Path("../logs").resolve()
+log_dir = pathlib.Path("../02_10_21_grasping").resolve()
 log_files = sorted(list(log_dir.glob("*.ulg")))
 messages = [
     "vehicle_local_position",
@@ -38,7 +38,7 @@ message_args = ",".join(messages)
 show_all = False
 show_adap_vel = True
 show_legends = True
-file_to_use = log_files[7]
+file_to_use = log_files[-1]
 padding = 8.0
 print("Opening {}".format(file_to_use))
 
@@ -178,18 +178,18 @@ ax[1][0].set_title("Attitude Control")
 ax[1][0].set_xlabel("Time (seconds)")
 ax[1][0].set_ylabel("Attitude (radians)")
 
-# plot_sp(
-#     ax[1][1],
-#     attitude_df,
-#     attitude_sp_df,
-#     ["rollspeed", "pitchspeed", "yawspeed"],
-#     ["angle_vel_x", "angle_vel_y", "angle_vel_z"],
-#     start=start_time,
-#     end=end_time,
-# )
-# ax[1][1].set_title("Angular Velocity Control")
-# ax[1][1].set_xlabel("Time (seconds)")
-# ax[1][1].set_ylabel("Angular Velocity (radians/second)")
+plot_sp(
+    ax[1][1],
+    attitude_df,
+    attitude_sp_df,
+    ["rollspeed", "pitchspeed", "yawspeed"],
+    ["angle_vel_x", "angle_vel_y", "angle_vel_z"],
+    start=start_time,
+    end=end_time,
+)
+ax[1][1].set_title("Angular Velocity Control")
+ax[1][1].set_xlabel("Time (seconds)")
+ax[1][1].set_ylabel("Angular Velocity (radians/second)")
 
 plot_adaptive(
     ax[2][0],

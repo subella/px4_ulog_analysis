@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.13.7
+#       jupytext_version: 1.6.0
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -114,6 +114,7 @@ def row_in_trajectory(row):
 def get_trajectory_bounds(dataframes, length, start_padding=3.0):
     """Get the trajectory time range if possible."""
     input_df = dataframes["commanded"]
+
     trajectory_times = []
     for i, time in enumerate(input_df["times"]):
         if row_in_trajectory(dataframes["commanded"].iloc[i]):
@@ -123,7 +124,6 @@ def get_trajectory_bounds(dataframes, length, start_padding=3.0):
         raise RuntimeError("Failed to find start time")
 
     start_time = min(trajectory_times) - start_padding
-    start_time = 25
     return start_time, start_time + length + start_padding
 
 
@@ -187,12 +187,12 @@ def plot_errors(ax, times, errors, label, **kwargs):
 # +
 adaptive = 0
 geometric = 1
-adaptive_log_location = "../logs"
+adaptive_log_location = "../adaptive_trials"
 geometric_log_location = "../geometric_trials"
 result_location = "../log_output"
 
 start_padding = 1.0
-length = 15.0
+length = 7.0
 N_samples = 60
 samples = np.linspace(0.0, length + start_padding, N_samples)
 
@@ -253,6 +253,3 @@ ax[2].set_ylabel("Error (radians)")
 
 fig.set_size_inches([15, 18])
 plt.show()
-# -
-
-
