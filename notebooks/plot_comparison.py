@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.6.0
+#       jupytext_version: 1.13.7
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -47,9 +47,14 @@ NAME_TO_MESSAGES = {
 
 
 # +
-def get_filename(log_dir, index):
+# def get_filename(log_dir, index):
+#     """Get the file from the index."""
+#     return next(log_dir.glob("{:05d}*.ulg".format(index)))
+
+def get_files(log_location):
     """Get the file from the index."""
-    return next(log_dir.glob("{:05d}*.ulg".format(index)))
+    log_dir = pathlib.Path(log_location).resolve()
+    return list(log_dir.glob("*.ulg"))[-1]
 
 
 def get_array_values(df, name, shape):
@@ -223,7 +228,7 @@ def plot_adaptive(ax, dataframes, name, fields, bounds, postfix="", **kwargs):
 # +
 adaptive = 0
 geometric = 1
-log_location = "../11_5_logs"
+log_location = "../logs"
 result_location = "../log_output"
 show_geometric_adaptive_terms = False
 
@@ -232,25 +237,25 @@ end_padding = 4.0
 
 log_dir = pathlib.Path(log_location).resolve()
 result_dir = pathlib.Path(result_location).resolve()
-adaptive_file = get_filename(log_dir, adaptive)
-geometric_file = get_filename(log_dir, geometric)
+adaptive_file = get_files(log_dir)
+# geometric_file = get_filename(log_dir, geometric)
 
 print(adaptive_file)
-print(geometric_file)
+# print(geometric_file)
 
 adaptive_dfs = get_dataframes(result_dir, adaptive_file)
-geometric_dfs = get_dataframes(result_dir, geometric_file)
+# geometric_dfs = get_dataframes(result_dir, geometric_file)
 adaptive_range = get_trajectory_bounds(
     adaptive_dfs, start_padding=start_padding, end_padding=end_padding
 )
-geometric_range = get_trajectory_bounds(
-    geometric_dfs, start_padding=start_padding, end_padding=end_padding
-)
+# geometric_range = get_trajectory_bounds(
+#     geometric_dfs, start_padding=start_padding, end_padding=end_padding
+# )
 
 adaptive_pos_errors = get_pos_errors(adaptive_dfs, adaptive_range)
-geometric_pos_errors = get_pos_errors(geometric_dfs, geometric_range)
+# geometric_pos_errors = get_pos_errors(geometric_dfs, geometric_range)
 adaptive_att_errors = get_att_errors(adaptive_dfs, adaptive_range)
-geometric_att_errors = get_att_errors(geometric_dfs, geometric_range)
+# geometric_att_errors = get_att_errors(geometric_dfs, geometric_range)
 
 # +
 fig, ax = plt.subplots(3, 2)
@@ -350,3 +355,6 @@ ax[2][1].set_ylabel("Moment (kg * rad/s^2)")
 
 fig.set_size_inches([15, 18])
 plt.show()
+# -
+
+
