@@ -8,11 +8,12 @@
 #       format_version: '1.5'
 #       jupytext_version: 1.13.7
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: trt_venv
 #     language: python
-#     name: python3
+#     name: envname
 # ---
 
+# +
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -22,6 +23,12 @@ import subprocess
 import numpy as np
 import functools
 import pyquaternion as pyq
+
+import sys
+import pandas as pd
+from bagpy import bagreader
+import os
+# -
 
 sns.set()
 
@@ -78,6 +85,7 @@ def get_field_values(df, fields, shape):
 
 def get_df_with_time(data_frames, name, first_time, timescale=1.0e-6):
     """Add a time column to the dataframe."""
+    print(data_frames)
     to_return = data_frames[name]
     to_return["times"] = (to_return["timestamp"] - first_time) * 1.0e-6
     return to_return
@@ -107,24 +115,22 @@ def get_dataframes(result_dir, file_to_use):
 
 def row_in_trajectory(row):
     """Check if a row belongs to a trajectory command."""
-    return row["current.type"] == 0 and row["current.velocity_valid"]
+    return row["current.type"] == 8 and row["current.velocity_valid"]
 
 
-def get_trajectory_bounds(dataframes, length, start_padding=3.0):
+def get_trajectory_bounds(dataframes, length, start_padding=0.0):
     """Get the trajectory time range if possible."""
     input_df = dataframes["commanded"]
-    print(input_df)
-#     trajectory_times = []
-#     for i, time in enumerate(input_df["times"]):
-#         if row_in_trajectory(dataframes["commanded"].iloc[i]):
-#             trajectory_times.append(time)
+    trajectory_times = []
+    for i, time in enumerate(input_df["times"]):
+        if row_in_trajectory(dataframes["commanded"].iloc[i]):
+            trajectory_times.append(time)
 
-#     if len(trajectory_times) == 0:
-#         raise RuntimeError("Failed to find start time")
+    if len(trajectory_times) == 0:
+        raise RuntimeError("Failed to find start time")
 
-#     start_time = min(trajectory_times) - start_padding
-#     start_time = 25
-#     return start_time, start_time + length + start_padding
+    start_time = min(trajectory_times) - start_padding
+    return start_time, start_time + length
 
 
 def lookup_time_index(df, t):
@@ -227,7 +233,7 @@ def get_all_errors(start_time, length, samples, log_location, result_location):
 
 
 # +
-log_location = "../pepsi_2ms"
+log_location = "../vision_test"
 result_location = "../log_output"
 start_time = 25
 length = 15.0
@@ -280,8 +286,247 @@ ax[1][1].set_ylabel("Error (meters)")
 
 fig.set_size_inches([25, 18])
 plt.show()
+
+
+# -
+def load_bag(log_location, file_to_use, ds_period="10ms", useless_topic_fragments=None, bool_topics=None):
+    
+    if bool_topics is None:
+        bool_topics = []
+    if useless_topic_fragments is None:
+        useless_topic_fragments = []
+
+    run_bag = str(file_to_use)
+#     result_dir = str(result_dir)
+#     run_name = run_bag.split('/')[-1].split('.')[0]
+#     run_base_dir = run_bag.split('/')[:-1]
+#     data_dir = '/' + os.path.join(*run_base_dir, run_name)
+#     run_bag = os.path.join(base, bag)
+    run_name = run_bag.split('/')[-1].split('.')[0]
+    run_base_dir = run_bag.split('/')[:-1]
+    data_dir = '/' + os.path.join(*run_base_dir, run_name)
+    print('checking %s' % log_location)
+    if not os.path.exists(data_dir):
+        print('Running csv creation on %s' % run_bag)
+        b = bagreader(run_bag)
+        csvfiles = []
+        for t in b.topics:
+            skip = False
+            for p in useless_topic_fragments:
+                if p in t:
+                    skip = True
+            if skip:
+                continue
+            data = b.message_by_topic(t)
+            csvfiles.append(data)
+    else:
+        print('Already ran Bagpy')
+        fns = os.listdir(data_dir)
+        csvfiles = [os.path.join(data_dir, fn) for fn in fns]
+
+    # Usually we shouldn't generate the extra csv files, but if we do have the csv files we don't want to load them because we run out of memory
+    csvs_to_read = [fn for fn in csvfiles if not any([p in fn for p in useless_topic_fragments])]
+    dfs = []
+    for fn in csvs_to_read:
+        print('Reading %s' % fn) 
+        try:
+            #dfs.append(pd.read_csv(fn))
+            dfs.append(pd.read_csv(fn, quotechar='"'))
+        except Exception as ex: 
+            print(ex)
+            continue
+    for ix in range(len(dfs)):
+        dfs[ix].Time = pd.to_datetime(dfs[ix].Time, unit='s')
+        dfs[ix] = dfs[ix].set_index('Time')
+        csv_fn = csvs_to_read[ix].split('/')[-1].split('.')[0]
+        for c in dfs[ix].columns:
+            dfs[ix] = dfs[ix].rename(columns={c:  csv_fn + '-' + c}) 
+            if csv_fn in bool_topics:
+                dfs[ix] = dfs[ix].astype(float)
+    dfs_resampled = [d.select_dtypes(['number']).resample(ds_period).mean().interpolate(method='linear') for d in dfs] 
+    df = pd.concat(dfs_resampled, join='outer', axis=1)
+    # dfs is a list of Pandas dataframes, where each dataframe corresponds to a single topic
+    # df is the combination of those dataframes after they have been resampled to the same time resolution
+    return df
+
+
+
+# +
+def get_ulog_files(log_location):
+    """Get the file from the index."""
+    log_dir = pathlib.Path(log_location).resolve()
+    print(log_dir)
+    return list(log_dir.glob("*.ulog"))
+    
+
+def get_rosbag_files(log_location):
+    """Get the file from the index."""
+    log_dir = pathlib.Path(log_location).resolve()
+    return list(log_dir.glob("*.bag"))
+
+def load_ulogs(result_location, log_location):
+    result_dir = pathlib.Path(result_location).resolve()
+    dfs = []
+    files = get_files(log_location)
+    print(files)
+    for file in files:
+        print(file)
+        print(result_dir)
+        df = get_dataframes(result_dir, file)
+        dfs.append(df)
+    return dfs
+    
+
+def load_rosbags(result_location, log_location):
+    result_dir = pathlib.Path(result_location).resolve()
+    dfs = []
+    files = get_rosbag_files(log_location)
+    for file in files:
+        df = load_bag(result_dir, file, bool_topics=["grasp_state_machine_node-grasp_started"])
+        dfs.append(df)
+    return dfs
+
+
 # -
 
+log_location = "../vision_test"
+log_result_location = "../vision_test"
+bag_location = "../vision_test"
+bag_result_location = "../vision_test"
+rosbags = load_rosbags(bag_result_location, bag_location)
+ulogs = load_ulogs(result_location, log_location)
+
+
+# +
+
+
+def get_bag_trajectory_bounds(bag):
+    pass
+    
+
+def get_all_errors(bags, ulogs, length, samples):
+    
+#     att_errors = np.zeros((N_samples, 3, len(files)))
+    pos = np.zeros((N_samples, 3, len(files)))
+    pos_sp = np.zeros((N_samples, 3, len(files)))
+    pos_errors = np.zeros((N_samples, 3, len(files)))
+    vel = np.zeros((N_samples, 3, len(files)))
+    vel_sp = np.zeros((N_samples, 3, len(files)))
+    vel_errors = np.zeros((N_samples, 3, len(files)))
+
+    for bag, ulog in zip(bags, ulogs):
+        
+        bag_bounds = get_bag_trajectory_bounds(bag)
+        
+        dfs = get_dataframes(result_dir, filename)
+        time_range = [start_time, start_time + length]
+        errors = get_errors(dfs, samples, time_range)
+
+#         att_errors[:, i] = np.array(errors[0])
+        pos[:, :, i] = np.array(errors[0])
+        pos_sp[:, :, i] = np.array(errors[1])
+        pos_errors[:, :, i] = np.array(errors[2])
+        vel[:, :, i] = np.array(errors[3])
+        vel_sp[:, :, i] = np.array(errors[4])
+        vel_errors[:, :, i] = np.array(errors[5])
+
+    return pos, pos_sp, pos_errors, vel, vel_sp, vel_errors
+
+# fig, ax = plt.subplots(2, 2)
+samples = np.linspace(0.0, 10, N_samples)
+time_range = get_trajectory_bounds(ulogs[0], 10)
+errors = get_errors(ulogs[1], samples, time_range)
+# print(np.array(errors[0])[:,2])
+plt.plot(samples, np.array(errors[0])[:,1], label="x", color=colors[0])
+plt.plot(samples, np.array(errors[0])[:,0], label="y", color=colors[1])
+plt.plot(samples, -np.array(errors[0])[:,2], label="z", color=colors[2])
+plt.plot(samples, np.array(errors[1])[:,1], label="x", color=colors[0])
+plt.plot(samples, np.array(errors[1])[:,0], label="y", color=colors[1])
+plt.plot(samples, -np.array(errors[1])[:,2], label="z", color=colors[2])  
+# rosbags[0]["grasp_state_machine_node-grasp_started-data"]
+df = rosbags[0]
+# cut = df[~df['grasp_state_machine_node-grasp_started-data'].isna()]
+cut = df
+start_time = 0 
+end_time = cut.index[-1].timestamp() - cut.index[0].timestamp()
+# print(len(cut))
+cut["times"] = [cut.index[i].timestamp() - cut.index[0].timestamp() for i in range(len(cut))]
+# print(cut["times"])
+# cut.plot(x="times", y=["sparksdrone-world-pose.position.x",
+#                        "sparksdrone-world-pose.position.y",
+#                        "sparksdrone-world-pose.position.z",
+#                        "grasp_state_machine_node-grasp_started-data",
+#                        "cmd_gripper_sub-data",
+#                       "sparkgrasptar-world-pose.position.x",
+#                       "sparkgrasptar-world-pose.position.y",
+#                       "sparkgrasptar-world-pose.position.z",
+#                       "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.x",
+#                       "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.y",
+#                       "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.z",
+#                       "gtsam_tracker_node-target_global_odom_estimate-twist.twist.linear.x",
+#                       "gtsam_tracker_node-target_global_odom_estimate-twist.twist.linear.y",
+#                       "gtsam_tracker_node-target_global_odom_estimate-twist.twist.linear.z"],
+#         figsize=(20, 10))
+
+cut["mocap_aligned_x"] = cut["gtsam_tracker_node_secondary-teaser_global-pose.position.x"] - cut["sparksdrone-world-pose.position.x"]
+cut["mocap_aligned_y"] = cut["gtsam_tracker_node_secondary-teaser_global-pose.position.y"] - cut["sparksdrone-world-pose.position.y"]
+cut["mocap_aligned_z"] = cut["gtsam_tracker_node_secondary-teaser_global-pose.position.z"] - cut["sparksdrone-world-pose.position.z"]
+
+# cut.plot(x="times", y=["mocap_aligned_x",
+#                        "mocap_aligned_y",
+#                        "mocap_aligned_z",
+#                       "gtsam_tracker_node-teaser_global-pose.position.x",
+#                        "gtsam_tracker_node-teaser_global-pose.position.y",
+#                        "gtsam_tracker_node-teaser_global-pose.position.z",
+#                       "sparksdrone-world-pose.orientation.w",
+#                       "sparksdrone-world-pose.orientation.x",
+#                       "sparksdrone-world-pose.orientation.y",
+#                       "sparksdrone-world-pose.orientation.z"],
+#          figsize=(20,10))
+                       
+# cut.plot(x="times", y=["sparksdrone-world-pose.position.x",
+#                        "sparksdrone-world-pose.position.y",
+#                        "sparksdrone-world-pose.position.z",
+#                        "grasp_state_machine_node-grasp_started-data",
+#                        "gtsam_tracker_node-teaser_global-pose.position.x",
+#                        "gtsam_tracker_node-teaser_global-pose.position.y",
+#                        "gtsam_tracker_node-teaser_global-pose.position.z",
+#                        "gtsam_tracker_node_secondary-teaser_global-pose.position.x",
+#                        "gtsam_tracker_node_secondary-teaser_global-pose.position.y",
+#                        "gtsam_tracker_node_secondary-teaser_global-pose.position.z"
+                       
+#                       ],
+#         figsize=(20, 10))
+
+cut.plot(x="times", y=["gtsam_tracker_node_secondary-target_global_odom_estimate-pose.pose.position.x",
+                       "gtsam_tracker_node_secondary-target_global_odom_estimate-pose.pose.position.y",
+                       "gtsam_tracker_node_secondary-target_global_odom_estimate-pose.pose.position.z",
+                      "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.x",
+                       "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.y",
+                       "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.z"],
+         figsize=(20,10))
+
+
+log = ulogs[0]
+
+# print(ulogs[0].keys())
+# -
+
+for col in cut.columns:
+    print(col)
+
+cut
+
+df.plot(y=["cmd_gripper_sub-data", "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.x", "sparksdrone-world-pose.position.x", 'grasp_state_machine_node-grasp_started-data'])
+
+from load_bag import load_bag
+
+dfs, df = load_bag("/home/subella/src/px4_ulog_analysis/test/", 
+                   "1_2023-03-06-11-47-47.bag", 
+                   "10ms", 
+                   bool_topics=["grasp_state_machine_node/grasp_started"])
+
+df.columns.tolist()
 
 
 
