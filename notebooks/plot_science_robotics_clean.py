@@ -498,6 +498,41 @@ def refine_temporal_alignment(ulogs, rosbags, rosbag_vo_x_topic):
 
 
 
+# +
+times = np.array(ulog.index)
+positions = np.array([ulog["x"], ulog["y"], ulog["z"]]).T
+quaternions_wxyz = np.array([ulog["q[0]"], ulog["q[1]"], ulog["q[2]"], ulog["q[3]"]]).T
+ulog_evo = convert_traj_to_evo(positions, quaternions_wxyz, times)
+
+times = np.array(bag.index)
+positions = np.array([bag["mavros-odometry-out-pose.pose.position.x"], 
+                      bag["mavros-odometry-out-pose.pose.position.y"],
+                      bag["mavros-odometry-out-pose.pose.position.z"]]).T
+quaternions_wxyz = np.array([bag["mavros-odometry-out-pose.pose.orientation.w"],
+                             bag["mavros-odometry-out-pose.pose.orientation.x"], 
+                             bag["mavros-odometry-out-pose.pose.orientation.y"], 
+                             bag["mavros-odometry-out-pose.pose.orientation.z"]]).T
+bag_evo = convert_traj_to_evo(positions, quaternions_wxyz, times)
+
+T, (bag_synced, ulog_synced) = get_aligned_trajectories(ulog_evo, bag_evo)
+print(ulog_evo)
+print(ulog_synced)
+
+print(bag_evo)
+print(bag_synced)
+
+# print(ulog_synced.timestamps)
+print(ulog_evo.positions_xyz)
+print(ulog_synced.positions_xyz)
+print(bag_evo.positions_xyz)
+print(bag_synced.positions_xyz)
+# print(bag_evo.timestamps)
+
+# print(ulog_synced.positions_xyz)
+
+# print(bag.index)
+# print(ulog.index)
+
 # -
 
 # # Plotting Helpers
@@ -548,6 +583,9 @@ def add_velocities(dfs):
 
 # # Trajectory Alignment
 
+for col in dfs[0].columns:
+    print(col)
+
 # +
 ulog_location = "../vision_medkit_05ms"
 ulog_result_location = "../log_output"
@@ -569,6 +607,107 @@ dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_l
 
 # dfs = merge_ulogs_rosbags(ulogs, rosbags)
 
+
+# +
+
+# ulog_location = "../vision_medkit_05ms"
+# ulog_result_location = "../log_output"
+# bag_location = "../vision_medkit_05ms"
+# bag_result_location = "../vision_medkit_05ms"
+
+# medkit_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
+
+# ulog_location = "../vision_cardboard_box_05ms"
+# ulog_result_location = "../log_output"
+# bag_location = "../vision_cardboard_box_05ms"
+# bag_result_location = "../vision_cardboard_box_05ms"
+
+# cardboard_box_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
+
+# ulog_location = "../vision_pepsi_05ms"
+# ulog_result_location = "../log_output"
+# bag_location = "../vision_pepsi_05ms"
+# bag_result_location = "../vision_pepsi_05ms"
+
+# pepsi_05_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
+
+# ulog_location = "../vision_pepsi_125ms"
+# ulog_result_location = "../log_output"
+# bag_location = "../vision_pepsi_125ms"
+# bag_result_location = "../vision_pepsi_125ms"
+
+# pepsi_125_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
+
+# ulog_location = "../vision_pepsi_2ms"
+# ulog_result_location = "../log_output"
+# bag_location = "../vision_pepsi_2ms"
+# bag_result_location = "../vision_pepsi_2ms"
+
+# pepsi_2_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
+
+for medkit_df, cardboard_box_df, pepsi_05_df, pepsi_125_df, pepsi_2_df in zip(medkit_dfs, cardboard_box_dfs, pepsi_05_dfs, pepsi_125_dfs, pepsi_2_dfs):
+    fig, ax = plt.subplots(1, 1, figsize=(15,5))
+    
+    start_id = max(medkit_df[mavros_in_qx].dropna().index[0], medkit_df[mocap_drone_qx].dropna().index[0])
+
+    df_sliced = medkit_df[start_id:]
+    mavros_quat_topics = [mavros_in_qx, mavros_in_qy, mavros_in_qz, mavros_in_qw]
+    mocap_quat_topics = [mocap_drone_qx, mocap_drone_qy, mocap_drone_qz, mocap_drone_qw]
+
+    mavros_quat = np.array(df_sliced.loc[:, mavros_quat_topics])
+    mavros_quat = mavros_quat / np.linalg.norm(mavros_quat, axis=1)[:,None]
+    mocap_quat = np.array(df_sliced.loc[:, mocap_quat_topics])
+    mocap_quat = mocap_quat / np.linalg.norm(mocap_quat, axis=1)[:,None]
+    
+#     print(mavros_quat)
+    mavros_rpy = R.from_quat(mavros_quat).as_euler("xyz", degrees=True)
+#     print(mavros_rpy.shape)
+#     print(medkit_df.index)
+    mocap_rpy = R.from_quat(mocap_quat).as_euler("xyz", degrees=True)
+    
+    
+#     ax.plot(df_sliced.index, mavros_rpy[:,0], label="mavros_r")
+#     ax.plot(df_sliced.index, mocap_rpy[:,0], label="mocap_r")
+    
+#     ax.plot(df_sliced.index, mavros_rpy[:,1], label="mavros_p")
+#     ax.plot(df_sliced.index, mocap_rpy[:,1], label="mocap_p")    
+    
+#     ax.plot(df_sliced.index, mavros_rpy[:,2], label="mavros_y")
+#     ax.plot(df_sliced.index, mocap_rpy[:,2], label="mocap_y")
+
+#     ax.plot(medkit_df.index, medkit_df[mavros_in_qx], label="mavros_qx")
+#     ax.plot(medkit_df.index, medkit_df[mocap_drone_qx], label="mocap_qx")
+    
+#     ax.plot(medkit_df.index, medkit_df[mavros_in_qy], label="mavros_qy")
+#     ax.plot(medkit_df.index, medkit_df[mocap_drone_qy], label="mocap_qy")
+    
+#     ax.plot(medkit_df.index, medkit_df[mavros_in_qz], label="mavros_qz")
+#     ax.plot(medkit_df.index, medkit_df[mocap_drone_qz], label="mocap_qz")
+    
+#     ax.plot(medkit_df.index, medkit_df[mavros_odometry_out_x], label="mavros_qx")
+    
+#     ax.plot(df.index, df[mocap_gtsam_target_x], label="mocap gtsam x")
+    ax.plot(medkit_df.index, (medkit_df[mocap_target_y] - medkit_df[mocap_gtsam_target_y]), label="medkit error")
+    ax.plot(cardboard_box_df.index, (cardboard_box_df[mocap_target_y] - cardboard_box_df[mocap_gtsam_target_z]), label="cardboard error")
+    ax.plot(pepsi_05_df.index, (pepsi_05_df[mocap_target_y] - pepsi_05_df[mocap_gtsam_target_y]), label="pepsi 05 error")
+    ax.plot(pepsi_125_df.index, (pepsi_125_df[mocap_target_y] - pepsi_125_df[mocap_gtsam_target_y]), label="pepsi 125 error")
+    ax.plot(pepsi_2_df.index, (pepsi_2_df[mocap_target_y] - pepsi_2_df[mocap_gtsam_target_y]), label="pepsi 2 error")
+#     ax.plot(df.index, df[mocap_gtsam_target_z], label="mocap gtsam z")
+
+#     ax.plot(df.index, df[mocap_target_x], label="mocap x")
+#     ax.plot(df.index, df[mocap_target_y], label="mocap y")
+#     ax.plot(df.index, df[mocap_target_z], label="mocap z")
+
+
+    ax.set_xlim([-5,0])
+#     ax.set_xlim([-40, -25])
+    ax.set_ylim([-.05,.05])
+    ax.legend()
+# -
+
+# # Hand Eye Calibration
+
+# !source ~/hand_eye_ws/devel/setup.bash
 
 # +
 df_sliced = dfs[2][-30:3]
