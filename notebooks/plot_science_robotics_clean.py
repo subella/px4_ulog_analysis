@@ -148,7 +148,7 @@ def add_velocity(df, dt=0.01):
 def add_velocities(dfs):
     for df in dfs:
         add_velocity(df)
-    
+
 
 # -
 
