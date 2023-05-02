@@ -88,9 +88,26 @@ mavros_in_aligned_qx = "mavros_in_aligned_qx"
 mavros_in_aligned_qy = "mavros_in_aligned_qy"
 mavros_in_aligned_qz = "mavros_in_aligned_qz"
 
+alignment_error_x = "alignment_error_x"
+alignment_error_y = "alignment_error_y"
+alignment_error_z = "alignment_error_z"
+alignment_error_norm = "alignment_error_norm"
+
+
 mavros_gtsam_target_x = "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.x"
 mavros_gtsam_target_y = "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.y"
 mavros_gtsam_target_z = "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.z"
+
+target_error_x = "target_error_x"
+target_error_y = "target_error_y"
+target_error_z = "target_error_z"
+target_error_norm = "target_error_norm"
+
+
+tracking_error_x = "tracking_error_x"
+tracking_error_y = "tracking_error_y"
+tracking_error_z = "tracking_error_z"
+tracking_error_norm = "tracking_error_norm"
 
 mocap_gtsam_target_x = "gtsam_tracker_node_secondary-target_global_odom_estimate-pose.pose.position.x"
 mocap_gtsam_target_y = "gtsam_tracker_node_secondary-target_global_odom_estimate-pose.pose.position.y"
@@ -391,7 +408,6 @@ def reindex_df(df, des_dt=0.01, int_cols=[]):
     df.index = df.index.total_seconds()
     # Round so you can do floating point comparisons (prob should change this)
     df.index = np.round(df.index, 2)
-    print(df.index)
     df["times"] = df.index
     return df
 
@@ -424,6 +440,7 @@ def create_dfs(ulog_location, ulog_result_location,
     
     rosbags = load_rosbags(bag_result_location, bag_location)
     format_rosbags(rosbags, sample_rate=10)
+    print(rosbags[0].index)
     
 #     ulogs = load_ulogs(ulog_result_location, ulog_location)
 #     format_ulogs(ulogs)
@@ -431,9 +448,8 @@ def create_dfs(ulog_location, ulog_result_location,
 #     refine_temporal_alignment(ulogs, rosbags, rosbag_vo_x_topic="mavros-odometry-out-pose.pose.position.x")
 
 #     dfs = merge_ulogs_rosbags(ulogs, rosbags)
-    
-#     return dfs
     return rosbags
+    return dfs
 
 
 # -
@@ -464,6 +480,51 @@ def get_aligned_trajectories(traj_curr, traj_ref,
         ref_H_curr = traj_curr_synced.align_origin(traj_ref_synced)
         ref_T_curr = (ref_H_curr[:3, :3], ref_H_curr[:3, 3], 1.0)
     return ref_T_curr, (traj_ref_synced, traj_curr_synced)
+
+def align_mavros_to_mocap(df, start_time=0, end_time=1):
+    # Start alignment at grasp start before grasp start
+    df_sliced = df.loc[start_time:]
+    times = np.array(df_sliced.index)
+    mavros_positions = np.array([df_sliced[mavros_in_x], 
+                                 df_sliced[mavros_in_y],
+                                 df_sliced[mavros_in_z]]).T
+    mavros_quaternions_wxyz = np.array([df_sliced[mavros_in_qw],
+                                        df_sliced[mavros_in_qx], 
+                                        df_sliced[mavros_in_qy], 
+                                        df_sliced[mavros_in_qz]]).T
+
+    mocap_positions = np.array([df_sliced[mocap_drone_x], 
+                                df_sliced[mocap_drone_y],
+                                df_sliced[mocap_drone_z]]).T
+    mocap_quaternions_wxyz = np.array([df_sliced[mocap_drone_qw],
+                                       df_sliced[mocap_drone_x], 
+                                       df_sliced[mocap_drone_y], 
+                                       df_sliced[mocap_drone_z]]).T
+    
+    
+    mavros_evo = convert_traj_to_evo(mavros_positions, mavros_quaternions_wxyz, times)
+    mocap_evo = convert_traj_to_evo(mocap_positions, mocap_quaternions_wxyz, times)
+
+    T, (mocap_aligned, mavros_aligned) = get_aligned_trajectories(mavros_evo, mocap_evo, 
+                                                                  num_poses=len(df_sliced[start_time:end_time]))
+
+    return T, mocap_aligned, mavros_aligned
+
+def create_aligned_mavros(dfs):
+    for i, df in enumerate(dfs):
+        start_time = -5
+        end_time = 3
+        T, mocap_aligned, mavros_aligned = align_mavros_to_mocap(df, start_time=start_time, end_time=end_time)
+        aligned_df = pd.DataFrame()
+        aligned_df.index = df[start_time:].index
+        aligned_df[mavros_in_aligned_x] = mavros_aligned.positions_xyz[:,0]
+        aligned_df[mavros_in_aligned_y] = mavros_aligned.positions_xyz[:,1]
+        aligned_df[mavros_in_aligned_z] = mavros_aligned.positions_xyz[:,2]
+        aligned_df[mavros_in_aligned_qw] = mavros_aligned.orientations_quat_wxyz[:,0]
+        aligned_df[mavros_in_aligned_qx] = mavros_aligned.orientations_quat_wxyz[:,1]
+        aligned_df[mavros_in_aligned_qy] = mavros_aligned.orientations_quat_wxyz[:,2]
+        aligned_df[mavros_in_aligned_qz] = mavros_aligned.orientations_quat_wxyz[:,3]
+        dfs[i] = df.join(aligned_df)
 
 def refine_temporal_alignment_single(ulog, rosbag, rosbag_vo_x_topic):
     # Bag always lags behind ulog, so shift bag left until error is minimized
@@ -498,51 +559,16 @@ def refine_temporal_alignment(ulogs, rosbags, rosbag_vo_x_topic):
 
 
 
-# +
-times = np.array(ulog.index)
-positions = np.array([ulog["x"], ulog["y"], ulog["z"]]).T
-quaternions_wxyz = np.array([ulog["q[0]"], ulog["q[1]"], ulog["q[2]"], ulog["q[3]"]]).T
-ulog_evo = convert_traj_to_evo(positions, quaternions_wxyz, times)
-
-times = np.array(bag.index)
-positions = np.array([bag["mavros-odometry-out-pose.pose.position.x"], 
-                      bag["mavros-odometry-out-pose.pose.position.y"],
-                      bag["mavros-odometry-out-pose.pose.position.z"]]).T
-quaternions_wxyz = np.array([bag["mavros-odometry-out-pose.pose.orientation.w"],
-                             bag["mavros-odometry-out-pose.pose.orientation.x"], 
-                             bag["mavros-odometry-out-pose.pose.orientation.y"], 
-                             bag["mavros-odometry-out-pose.pose.orientation.z"]]).T
-bag_evo = convert_traj_to_evo(positions, quaternions_wxyz, times)
-
-T, (bag_synced, ulog_synced) = get_aligned_trajectories(ulog_evo, bag_evo)
-print(ulog_evo)
-print(ulog_synced)
-
-print(bag_evo)
-print(bag_synced)
-
-# print(ulog_synced.timestamps)
-print(ulog_evo.positions_xyz)
-print(ulog_synced.positions_xyz)
-print(bag_evo.positions_xyz)
-print(bag_synced.positions_xyz)
-# print(bag_evo.timestamps)
-
-# print(ulog_synced.positions_xyz)
-
-# print(bag.index)
-# print(ulog.index)
-
 # -
 
 # # Plotting Helpers
 
-def plot_std(ax, df, lower_df, upper_df, topics):
-    for topic in topics:
-        ax.fill_between(df["times"], 
-                        lower_df[topic],
-                        upper_df[topic], 
-                        alpha=0.5)
+def plot_mean_std(ax, mean_df, vals, std, label=None):
+    ax.plot(mean_df.index, vals, label=label)
+    ax.fill_between(mean_df.index, 
+                    vals - std,
+                    vals + std, 
+                    alpha=0.5)
 
 
 # +
@@ -562,8 +588,9 @@ def get_aggregate_df(dfs):
         else:
             aggregate_df = pd.concat([aggregate_df, df])       
         
-    mean_df = aggregate_df.groupby("times", as_index=False).mean()
-    std_df = aggregate_df.groupby("times", as_index=False).std()
+    mean_df = aggregate_df.groupby(aggregate_df.index).mean()
+
+    std_df = aggregate_df.groupby(aggregate_df.index).std()
     return mean_df, std_df
         
 def add_velocity(df, dt=0.01):
@@ -581,901 +608,184 @@ def add_velocities(dfs):
 
 # -
 
-# # Trajectory Alignment
-
-for col in dfs[0].columns:
-    print(col)
+# # Vision Medkit 0.5 m/s
 
 # +
-ulog_location = "../vision_medkit_05ms"
+ulog_location = "../vision_pepsi_2ms"
 ulog_result_location = "../log_output"
-bag_location = "../vision_medkit_05ms"
-bag_result_location = "../vision_medkit_05ms"
+bag_location = "../vision_pepsi_2ms"
+bag_result_location = "../vision_pepsi_2ms"
 
 dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
-# rosbags = load_rosbags(bag_result_location, bag_location)
-# ulogs = load_ulogs(ulog_result_location, ulog_location)
+print(dfs[0])
+create_aligned_mavros(dfs)
 
-# format_rosbags_index(rosbags)
-# reindex_rosbags(rosbags)
-# center_rosbags(rosbags)
-
-# format_ulogs_index(ulogs)
-# reindex_ulogs(ulogs)
-# center_ulogs(ulogs)
-# refine_temporal_alignment(ulogs, rosbags, rosbag_vo_x_topic="mavros-odometry-out-pose.pose.position.x")
-
-# dfs = merge_ulogs_rosbags(ulogs, rosbags)
-
-
-# +
-
-# ulog_location = "../vision_medkit_05ms"
-# ulog_result_location = "../log_output"
-# bag_location = "../vision_medkit_05ms"
-# bag_result_location = "../vision_medkit_05ms"
-
-# medkit_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
-
-# ulog_location = "../vision_cardboard_box_05ms"
-# ulog_result_location = "../log_output"
-# bag_location = "../vision_cardboard_box_05ms"
-# bag_result_location = "../vision_cardboard_box_05ms"
-
-# cardboard_box_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
-
-# ulog_location = "../vision_pepsi_05ms"
-# ulog_result_location = "../log_output"
-# bag_location = "../vision_pepsi_05ms"
-# bag_result_location = "../vision_pepsi_05ms"
-
-# pepsi_05_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
-
-# ulog_location = "../vision_pepsi_125ms"
-# ulog_result_location = "../log_output"
-# bag_location = "../vision_pepsi_125ms"
-# bag_result_location = "../vision_pepsi_125ms"
-
-# pepsi_125_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
-
-# ulog_location = "../vision_pepsi_2ms"
-# ulog_result_location = "../log_output"
-# bag_location = "../vision_pepsi_2ms"
-# bag_result_location = "../vision_pepsi_2ms"
-
-# pepsi_2_dfs = create_dfs(ulog_location, ulog_result_location, bag_location, bag_result_location)
-
-for medkit_df, cardboard_box_df, pepsi_05_df, pepsi_125_df, pepsi_2_df in zip(medkit_dfs, cardboard_box_dfs, pepsi_05_dfs, pepsi_125_dfs, pepsi_2_dfs):
-    fig, ax = plt.subplots(1, 1, figsize=(15,5))
-    
-    start_id = max(medkit_df[mavros_in_qx].dropna().index[0], medkit_df[mocap_drone_qx].dropna().index[0])
-
-    df_sliced = medkit_df[start_id:]
-    mavros_quat_topics = [mavros_in_qx, mavros_in_qy, mavros_in_qz, mavros_in_qw]
-    mocap_quat_topics = [mocap_drone_qx, mocap_drone_qy, mocap_drone_qz, mocap_drone_qw]
-
-    mavros_quat = np.array(df_sliced.loc[:, mavros_quat_topics])
-    mavros_quat = mavros_quat / np.linalg.norm(mavros_quat, axis=1)[:,None]
-    mocap_quat = np.array(df_sliced.loc[:, mocap_quat_topics])
-    mocap_quat = mocap_quat / np.linalg.norm(mocap_quat, axis=1)[:,None]
-    
-#     print(mavros_quat)
-    mavros_rpy = R.from_quat(mavros_quat).as_euler("xyz", degrees=True)
-#     print(mavros_rpy.shape)
-#     print(medkit_df.index)
-    mocap_rpy = R.from_quat(mocap_quat).as_euler("xyz", degrees=True)
-    
-    
-#     ax.plot(df_sliced.index, mavros_rpy[:,0], label="mavros_r")
-#     ax.plot(df_sliced.index, mocap_rpy[:,0], label="mocap_r")
-    
-#     ax.plot(df_sliced.index, mavros_rpy[:,1], label="mavros_p")
-#     ax.plot(df_sliced.index, mocap_rpy[:,1], label="mocap_p")    
-    
-#     ax.plot(df_sliced.index, mavros_rpy[:,2], label="mavros_y")
-#     ax.plot(df_sliced.index, mocap_rpy[:,2], label="mocap_y")
-
-#     ax.plot(medkit_df.index, medkit_df[mavros_in_qx], label="mavros_qx")
-#     ax.plot(medkit_df.index, medkit_df[mocap_drone_qx], label="mocap_qx")
-    
-#     ax.plot(medkit_df.index, medkit_df[mavros_in_qy], label="mavros_qy")
-#     ax.plot(medkit_df.index, medkit_df[mocap_drone_qy], label="mocap_qy")
-    
-#     ax.plot(medkit_df.index, medkit_df[mavros_in_qz], label="mavros_qz")
-#     ax.plot(medkit_df.index, medkit_df[mocap_drone_qz], label="mocap_qz")
-    
-#     ax.plot(medkit_df.index, medkit_df[mavros_odometry_out_x], label="mavros_qx")
-    
-#     ax.plot(df.index, df[mocap_gtsam_target_x], label="mocap gtsam x")
-    ax.plot(medkit_df.index, (medkit_df[mocap_target_y] - medkit_df[mocap_gtsam_target_y]), label="medkit error")
-    ax.plot(cardboard_box_df.index, (cardboard_box_df[mocap_target_y] - cardboard_box_df[mocap_gtsam_target_z]), label="cardboard error")
-    ax.plot(pepsi_05_df.index, (pepsi_05_df[mocap_target_y] - pepsi_05_df[mocap_gtsam_target_y]), label="pepsi 05 error")
-    ax.plot(pepsi_125_df.index, (pepsi_125_df[mocap_target_y] - pepsi_125_df[mocap_gtsam_target_y]), label="pepsi 125 error")
-    ax.plot(pepsi_2_df.index, (pepsi_2_df[mocap_target_y] - pepsi_2_df[mocap_gtsam_target_y]), label="pepsi 2 error")
-#     ax.plot(df.index, df[mocap_gtsam_target_z], label="mocap gtsam z")
-
-#     ax.plot(df.index, df[mocap_target_x], label="mocap x")
-#     ax.plot(df.index, df[mocap_target_y], label="mocap y")
-#     ax.plot(df.index, df[mocap_target_z], label="mocap z")
-
-
-    ax.set_xlim([-5,0])
-#     ax.set_xlim([-40, -25])
-    ax.set_ylim([-.05,.05])
-    ax.legend()
 # -
 
-# # Hand Eye Calibration
-
-# !source ~/hand_eye_ws/devel/setup.bash
-
-# +
-df_sliced = dfs[2][-30:3]
-# df_sliced.index = (df_sliced.index).astype(int)
-print(df_sliced.index)
-mavros_quat_topics = [mavros_in_qx, mavros_in_qy, mavros_in_qz, mavros_in_qw]
-mocap_quat_topics = [mocap_drone_qx, mocap_drone_qy, mocap_drone_qz, mocap_drone_qw]
-
-mavros_quat = np.array(df_sliced.loc[:, mavros_quat_topics])
-mavros_quat = mavros_quat / np.linalg.norm(mavros_quat, axis=1)[:,None]
-mocap_quat = np.array(df_sliced.loc[:, mocap_quat_topics])
-mocap_quat = mocap_quat / np.linalg.norm(mocap_quat, axis=1)[:,None]
-
-df_sliced.loc[:, mavros_quat_topics] = mavros_quat
-df_sliced.loc[:, mocap_quat_topics] = mocap_quat
-df_sliced.index = ((30 + df_sliced.index) )
-header = [mavros_in_x, mavros_in_y, mavros_in_z, mavros_in_qx, mavros_in_qy, mavros_in_qz, mavros_in_qw]
-df_sliced.to_csv('poses_W_E.csv', columns = header, header=None)
-header = [mocap_drone_x, mocap_drone_y, mocap_drone_z, mocap_drone_qx, mocap_drone_qy, mocap_drone_qz, mocap_drone_qw]
-df_sliced.to_csv('poses_B_H.csv', columns = header, header=None)
-
-positions = []
-rotations = []
-for df in dfs:
-    df_sliced = df[-30:3]
-    mavros_quat_topics = [mavros_in_qx, mavros_in_qy, mavros_in_qz, mavros_in_qw]
-    mocap_quat_topics = [mocap_drone_qx, mocap_drone_qy, mocap_drone_qz, mocap_drone_qw]
-
-    mavros_quat = np.array(df_sliced.loc[:, mavros_quat_topics])
-    mavros_quat = mavros_quat / np.linalg.norm(mavros_quat, axis=1)[:,None]
-    mocap_quat = np.array(df_sliced.loc[:, mocap_quat_topics])
-    mocap_quat = mocap_quat / np.linalg.norm(mocap_quat, axis=1)[:,None]
-
-    df_sliced.loc[:, mavros_quat_topics] = mavros_quat
-    df_sliced.loc[:, mocap_quat_topics] = mocap_quat
-    df_sliced.index = ((30 + df_sliced.index) )
-    header = [mavros_in_x, mavros_in_y, mavros_in_z, mavros_in_qx, mavros_in_qy, mavros_in_qz, mavros_in_qw]
-    df_sliced.to_csv('poses_W_E.csv', columns = header, header=None)
-    header = [mocap_drone_x, mocap_drone_y, mocap_drone_z, mocap_drone_qx, mocap_drone_qy, mocap_drone_qz, mocap_drone_qw]
-    df_sliced.to_csv('poses_B_H.csv', columns = header, header=None)
-    
-    # !rosrun hand_eye_calibration compute_complete_handeye_calibration.sh poses_B_H.csv poses_W_E.csv 
-
-    with open("calibration_optimized.json", 'r') as f:
-        data = json.load(f)
-        # !rm calibration_optimized.json
-        p = [ float(data['translation'][name]) for name in 'xyz' ] 
-        q = np.array([ float(data['rotation'][name]) for name in 'ijkw' ])
-        positions.append(p)
-        rotations.append(q)
-
-# +
-# print(np.mean(positions, axis=0))
-# print(np.std(positions, axis=0))
-# print(np.mean(rotations, axis=0))
-# print(np.std(rotations, axis=0))
-
-rotations_flip = [r if r[0] > 0 else -r for r in rotations ]
-for r in rotations_flip:
-    print(r)
-    
-print("mean",  np.mean(rotations_flip, axis=0))
-print("std", np.std(rotations_flip, axis=0))
-# -
-
-in_rotations = rotations_flip.copy()
-
-# +
-
-df_sliced = dfs[7][-30:3]
-mavros_quat_topics = [mavros_out_qx, mavros_out_qy, mavros_out_qz, mavros_out_qw]
-mocap_quat_topics = [mocap_drone_qx, mocap_drone_qy, mocap_drone_qz, mocap_drone_qw]
-
-mavros_quat = np.array(df_sliced.loc[:, mavros_quat_topics])
-mavros_quat = mavros_quat / np.linalg.norm(mavros_quat, axis=1)[:,None]
-mocap_quat = np.array(df_sliced.loc[:, mocap_quat_topics])
-mocap_quat = mocap_quat / np.linalg.norm(mocap_quat, axis=1)[:,None]
-
-# print("mavros_quat", np.array(df_sliced.loc[:, mavros_quat]))
-# print("norm", np.linalg.norm(df_sliced.loc[:, mavros_quat], axis=1)[:,None])
-# print("mavros quat normed", np.array(df_sliced.loc[:, mavros_quat]) / np.linalg.norm(df_sliced.loc[:, mavros_quat], axis=1)[:,None])
-# print(np.linalg.norm(np.array(df_sliced.loc[:,[mavros_out_qx, mavros_out_qy, mavros_out_qz, mavros_out_qw]]), axis=1))
-df_sliced.loc[:, mavros_quat_topics] = mavros_quat
-df_sliced.loc[:, mocap_quat_topics] = mocap_quat
-df_sliced.index = ((30 + df_sliced.index) )
-header = [mavros_out_x, mavros_out_y, mavros_out_z, mavros_out_qx, mavros_out_qy, mavros_out_qz, mavros_out_qw]
-df_sliced.to_csv('poses_W_E.csv', columns = header, header=None)
-header = [mocap_drone_x, mocap_drone_y, mocap_drone_z, mocap_drone_qx, mocap_drone_qy, mocap_drone_qz, mocap_drone_qw]
-df_sliced.to_csv('poses_B_H.csv', columns = header, header=None)
-
-# +
-# for df in dfs:
-fig, ax = plt.subplots(1, 1, figsize=(15,5))
-#     ax.plot(ulog["commanded"].index, ulog["commanded"]["current.type"], label="Ulog x")
-# #     ax.plot(ulog["visual_odometry"].index, -ulog["visual_odometry"]["x"], label="Ulog x")
-# ax.plot(df.index, -df["ulog_visual_odometry_y"], label="Ulog y")
-# ax.plot(df.index, -df["ulog_visual_odometry_z"], label="Ulog z")
-# ax.plot(df.index, -df["ulog_visual_odometry_x"], label="Ulog pos x")
-# #     ax.plot(ulog["position"].index, -ulog["position"]["y"], label="Ulog pos y")
-# #     ax.plot(ulog["position"].index, -ulog["position"]["z"], label="-Ulog pos z")
-# ax.plot(df.index, df["mavros-odometry-out-pose.pose.position.x"], label="Bag x")
-# ax.plot(df.index, df["mavros-odometry-out-pose.pose.position.y"], label="Bag y")
-# ax.plot(df.index, df["mavros-odometry-out-pose.pose.position.z"], label="Bag z")
-# ax.plot(df.index, df["grasp_state_machine_node-grasp_started-data"], label="Bag z")
-
-ax.plot(df.index, df[mavros_in_qx], label="mavros x")
-ax.plot(df.index, df[mavros_in_qy], label="mavros y")
-ax.plot(df.index, df[mavros_in_qz], label="mavros z")
-ax.plot(df.index, df[mavros_in_qw], label="mavros qw")
-quat = np.array(df.loc[:, mavros_quat_topics])
-r = R.from_quat(quat[0]).as_euler("xyz", degrees=True)
-print(r)
-# ax.plot(df.index, df[mocap_drone_x], label="mocap x")
-# ax.plot(df.index, df[mocap_drone_y], label="mocap y")
-# ax.plot(df.index, df[mocap_drone_z], label="mocap z")
-
-# ax.plot(df.index, df["ulog_commanded_current.type"], label="Bag z")
-#     ax.set_xlim(right=25)
-ax.legend()
+print(dfs[0])
 
 
 # +
-def align_mavros_to_mocap(df, start_time=0, num_poses=None):
-    # Start alignment at grasp start before grasp start
-    df_sliced = df.loc[start_time:]
-#     df_sliced = df
-    times = np.array(df_sliced.index)
-    mavros_positions = np.array([df_sliced[mavros_in_x], 
-                                 df_sliced[mavros_in_y],
-                                 df_sliced[mavros_in_z]]).T
-    mavros_quaternions_wxyz = np.array([df_sliced[mavros_in_qw],
-                                        df_sliced[mavros_in_qx], 
-                                        df_sliced[mavros_in_qy], 
-                                        df_sliced[mavros_in_qz]]).T
+def add_error_columns(df, topics_1, topics_2, error_topics, norm_name):
 
-#     mavros_positions = np.array([df_sliced[ulog_vo_x], 
-#                                  df_sliced[ulog_vo_y],
-#                                  df_sliced[ulog_vo_z]]).T
-#     mavros_quaternions_wxyz = np.array([df_sliced[ulog_vo_qw],
-#                                         df_sliced[ulog_vo_qx], 
-#                                         df_sliced[ulog_vo_qy], 
-#                                         df_sliced[ulog_vo_qz]]).T
+    df.loc[:,error_topics] = df.loc[:,topics_1] - df.loc[:,topics_2]
+    for i, topic in enumerate(error_topics):
+        df[topic] = df.loc[:,topics_1[i]] - df.loc[:,topics_2[i]]
+    df[norm_name] = np.linalg.norm((df[error_topics[0]], df[error_topics[1]], df[error_topics[2]]),axis=0)
+    return df
 
-    mocap_positions = np.array([df_sliced[mocap_drone_x], 
-                                df_sliced[mocap_drone_y],
-                                df_sliced[mocap_drone_z]]).T
-    mocap_quaternions_wxyz = np.array([df_sliced[mocap_drone_qw],
-                                       df_sliced[mocap_drone_x], 
-                                       df_sliced[mocap_drone_y], 
-                                       df_sliced[mocap_drone_z]]).T
-    
-#     mavros_quaternions_wxyz = mocap_quaternions_wxyz
-#     print("mavros", mavros_quaternions_wxyz)
-#     print("mocap", mocap_quaternions_wxyz)
-    
-    mavros_evo = convert_traj_to_evo(mavros_positions, mavros_quaternions_wxyz, times)
-    mocap_evo = convert_traj_to_evo(mocap_positions, mocap_quaternions_wxyz, times)
+def verify_alignment(dfs):
+    for df in dfs:
+        fig, ax = plt.subplots(1, 1, figsize=(15,10))
+        ax.plot(df.index, df[mocap_drone_x], label="Mocap Drone x")
+        ax.plot(df.index, df[mocap_drone_y], label="Mocap Drone y")
+        ax.plot(df.index, df[mocap_drone_z], label="Mocap Drone z")
 
-    T, (mocap_aligned, mavros_aligned) = get_aligned_trajectories(mavros_evo, mocap_evo, num_poses=num_poses)
-
-    return T, mocap_aligned, mavros_aligned
-
-def make_tf(pos, rot):
-#     r = R.from_quat(rot).as_matrix()
-    T = np.zeros((4,4))
-    T[:3,:3] = rot
-    T[:3, 3] = pos.T
-    T[3, :] = [0,0,0,1]
-    return T
-
-
-def compute_marker_wrt_px4(df, mavros_wrt_mocap):
-    for index, row in df.iterrows():
-        px4_wrt_mavros_trans = np.array([row[mavros_in_x],
-                                         row[mavros_in_y],
-                                         row[mavros_in_z]])
-        px4_wrt_mavros_rot = np.array([row[mavros_in_qx],
-                                         row[mavros_in_qy],
-                                         row[mavros_in_qz],
-                                         row[mavros_in_qw]])
-        px4_wrt_mavros_rot = R.from_quat(px4_wrt_mavros_rot).as_matrix()
-
-        marker_wrt_mocap_trans = np.array([row[mocap_drone_x],
-                                         row[mocap_drone_y],
-                                         row[mocap_drone_z]])
-        marker_wrt_mocap_rot = np.array([row[mocap_drone_qx],
-                                         row[mocap_drone_qy],
-                                         row[mocap_drone_qz],
-                                         row[mocap_drone_qw]])
-        marker_wrt_mocap_rot = R.from_quat(marker_wrt_mocap_rot).as_matrix()
-
-
-        px4_wrt_mavros = make_tf(px4_wrt_mavros_trans, px4_wrt_mavros_rot)
-        marker_wrt_mocap = make_tf(marker_wrt_mocap_trans, marker_wrt_mocap_rot)
-
-#         print("mavros_wrt_mocap", mavros_wrt_mocap)
-#         print("px4_wrt_mavros", px4_wrt_mavros)
-#         print("marker_wrt_mocap", marker_wrt_mocap)
+        ax.plot(df.index, df[mavros_in_aligned_x], label="Aligned Marvros x")
+        ax.plot(df.index, df[mavros_in_aligned_y], label="Aligned Marvros y")
+        ax.plot(df.index, df[mavros_in_aligned_z], label="Aligned Marvros z")
         
-        px4_wrt_mocap = mavros_wrt_mocap.dot(px4_wrt_mavros)
-#         print("px4_wrt_mocap", px4_wrt_mocap)
-        marker_wrt_px4 = np.linalg.inv(marker_wrt_mocap).dot(px4_wrt_mocap)
-#         print("marker_wrt_px4", marker_wrt_px4)
-        return marker_wrt_px4
-
-
-#         target_est_transform_df.loc[index, 't265_wrt_mocap_x'] = t265_wrt_mocap[0,3]
-#         target_est_transform_df.loc[index, 't265_wrt_mocap_y'] = t265_wrt_mocap[1,3]
-#         target_est_transform_df.loc[index, 't265_wrt_mocap_z'] = t265_wrt_mocap[2,3]
-
-#     #     target_est_transform_df.loc[index, 'target_est_x'] = target_wrt_mocap[0,3]
-#     #     target_est_transform_df.loc[index, 'target_est_y'] = target_wrt_mocap[1,3]
-#     #     target_est_transform_df.loc[index, 'target_est_z'] = target_wrt_mocap[2,3]
-
-#         target_est_transform_df.loc[index, 'target_est_x'] = target_wrt_mocap[0,3]
-#         target_est_transform_df.loc[index, 'target_est_y'] = target_wrt_mocap[1,3]
-#         target_est_transform_df.loc[index, 'target_est_z'] = target_wrt_mocap[2,3]
-
-#     #     print("t265_wrt_mocap", t265_wrt_mocap)
-#     #     print("target_wrt_mocap", target_wrt_mocap)
-#     #     print("Est", target_wrt_mocap[:3, 3].T)
-#     #     print("GT", target_position_mocap)
-#         print("tar_wrt_t265", target_wrt_t265)
-#         print("drone_wrt_t265", drone_wrt_t265)
-#         print("drone_wrt_mocap", drone_wrt_mocap)
-#         print("error", target_wrt_mocap[:3, 3].T - target_position_mocap)
-
-def get_marker_wrt_px4(dfs):
-    num_samples = 1
-    num_poses=600
-    marker_wrt_px4_tfs = np.zeros((len(dfs) * num_samples,4,4))
-    xs = []
-    ys = []
-    zs = []
-    for i, df in enumerate(dfs):
-
-        for j in range(num_samples):
-            df_sliced = df[0:num_poses/100]
-#             print(df_sliced.index)
-            T, _, mavros_aligned = align_mavros_to_mocap(df_sliced, start_time=0)
-            mavros_wrt_mocap = make_tf(T[1], T[0])
-            marker_wrt_px4 = compute_marker_wrt_px4(df_sliced, mavros_wrt_mocap)
-            xs.append(mavros_wrt_mocap[0,3])
-            ys.append(mavros_wrt_mocap[1,3])
-            zs.append(mavros_wrt_mocap[2,3])
-
-            marker_wrt_px4_tfs[i*num_samples + j,:,:] = marker_wrt_px4
-
-            aligned_df = pd.DataFrame()
-#             df_sliced = df.loc[-j:]
-            aligned_df.index = df_sliced.index
-            aligned_df[mavros_in_aligned_x] = mavros_aligned.positions_xyz[:,0]
-            aligned_df[mavros_in_aligned_y] = mavros_aligned.positions_xyz[:,1]
-            aligned_df[mavros_in_aligned_z] = mavros_aligned.positions_xyz[:,2]
-            aligned_df[mavros_in_aligned_qw] = mavros_aligned.orientations_quat_wxyz[:,0]
-            aligned_df[mavros_in_aligned_qx] = mavros_aligned.orientations_quat_wxyz[:,1]
-            aligned_df[mavros_in_aligned_qy] = mavros_aligned.orientations_quat_wxyz[:,2]
-            aligned_df[mavros_in_aligned_qz] = mavros_aligned.orientations_quat_wxyz[:,3]
-            
-            print(aligned_df[mavros_in_aligned_qx][0:])
-            dff = df.join(aligned_df)
-            print(dff[mavros_in_aligned_qx][0:])
-            fig, ax = plt.subplots(2, 2, figsize=(15,5))
-
-
-            ax[0][0].plot(dff.index, dff[mocap_drone_x], label="mocap x")
-            ax[0][0].plot(dff.index, dff[mocap_drone_y], label="mocap y")
-            ax[0][0].plot(dff.index, dff[mocap_drone_z], label="mocap z")
-
-            ax[0][0].plot(dff.index, dff[mavros_in_aligned_x], label="mavros x")
-            ax[0][0].plot(dff.index, dff[mavros_in_aligned_y], label="mavros y")
-            ax[0][0].plot(dff.index, dff[mavros_in_aligned_z], label="mavros z")
-            
-            ax[0][1].plot(dff[mocap_drone_x], dff[mocap_drone_y], label="mocap xy")
-            ax[0][1].plot(dff[mavros_in_aligned_x], dff[mavros_in_aligned_y], label="mavros xy")
-            
-            start_id = max(dff[mavros_in_aligned_qx].dropna().index[0], dff[mocap_drone_qx].dropna().index[0])
-            end_id = min(dff[mavros_in_aligned_qx].dropna().index[-1], dff[mocap_drone_qx].dropna().index[-1])
-
-
-
-            df_sliced = dff[start_id:end_id]
-            mavros_quat_topics = [mavros_in_aligned_qx, mavros_in_aligned_qy, mavros_in_aligned_qz, mavros_in_aligned_qw]
-            mocap_quat_topics = [mocap_drone_qx, mocap_drone_qy, mocap_drone_qz, mocap_drone_qw]
-
-            mavros_quat = np.array(df_sliced.loc[:, mavros_quat_topics])
-            mavros_quat = mavros_quat / np.linalg.norm(mavros_quat, axis=1)[:,None]
-            mocap_quat = np.array(df_sliced.loc[:, mocap_quat_topics])
-            mocap_quat = mocap_quat / np.linalg.norm(mocap_quat, axis=1)[:,None]
-
-        #     print(mavros_quat)
-            mavros_rpy = R.from_quat(mavros_quat).as_euler("xyz", degrees=True)
-        #     print(mavros_rpy.shape)
-        #     print(medkit_df.index)
-            mocap_rpy = R.from_quat(mocap_quat).as_euler("xyz", degrees=True)
-            
-            ax[1][1].plot(dff[start_id:end_id].index, mavros_rpy[:,2], label="mavros yaw")
-            ax[1][1].plot(dff[start_id:end_id].index, mocap_rpy[:,2], label="mocap yaw")
-            ax[1][1].legend()
-            
-            ax[1][0].plot(dff[start_id:end_id].index, mocap_quat[:,0], label="mocap qx")
-            ax[1][0].plot(dff[start_id:end_id].index, mocap_quat[:,1], label="mocap qy")
-            ax[1][0].plot(dff[start_id:end_id].index, mocap_quat[:,2], label="mocap qz")
-            ax[1][0].plot(dff[start_id:end_id].index, mocap_quat[:,3], label="mocap qw")
-    
-            
-            ax[0][1].set_xlim(-0.5, 0.5)
-            ax[1][1].set_xlim(-0.5, 6)
-            ax[1][1].set_ylim(-10,10)
-            ax[1][0].set_ylim(0, 0.25)
-#             ax.plot(dff.index, dff[mavros_in_aligned_z], label="mavros z")
-
-    marker_wrt_px4_mean = np.mean(marker_wrt_px4_tfs, axis=(0))
-    marker_wrt_px4_std = np.std(marker_wrt_px4_tfs, axis=(0))
-    print("Computed marker_wrt_px4 mean", marker_wrt_px4_mean)
-    print("Computed marker_wrt_px4 std", marker_wrt_px4_std)
-    print("rots", marker_wrt_px4_tfs)
-    print("eulers", R.from_matrix(marker_wrt_px4_tfs[:,:3,:3]).as_euler("xyz", degrees=True))
-    print("rot", R.from_matrix(marker_wrt_px4_mean[:3,:3]).as_euler("xyz", degrees=True))
-    print("rot", np.std(R.from_matrix(marker_wrt_px4_tfs[:,:3,:3]).as_euler("xyz", degrees=True), axis=0))
-    return marker_wrt_px4_mean, xs, ys, zs
-            
-# -
-
-marker_wrt_px4, xs, ys, zs = get_marker_wrt_px4(dfs)
-
-counts, bins = np.histogram(xs)
-plt.plot(xs)
-
-print(np.mean(tfs, axis=(0)))
-print(np.std(tfs, axis=(0)))
-print(marker_wrt_px4)
-
-# +
+verify_alignment(dfs)
 for df in dfs:
-    fig, ax = plt.subplots(1, 1, figsize=(15,5))
-    T , mocap_aligned, mavros_aligned = align_mavros_to_mocap(df)
-    aligned_df = pd.DataFrame()
-    df_sliced = df.loc[0:]
-    aligned_df.index = df_sliced.index
-    aligned_df[mavros_in_aligned_x] = mavros_aligned.positions_xyz[:,0]
-    aligned_df[mavros_in_aligned_y] = mavros_aligned.positions_xyz[:,1]
-    aligned_df[mavros_in_aligned_z] = mavros_aligned.positions_xyz[:,2]
-    aligned_df[mavros_in_aligned_qw] = mavros_aligned.orientations_quat_wxyz[:,0]
-    aligned_df[mavros_in_aligned_qx] = mavros_aligned.orientations_quat_wxyz[:,1]
-    aligned_df[mavros_in_aligned_qy] = mavros_aligned.orientations_quat_wxyz[:,2]
-    aligned_df[mavros_in_aligned_qz] = mavros_aligned.orientations_quat_wxyz[:,3]
-    df = df.join(aligned_df)
-
-#     ax.plot(df.index, df[mocap_drone_x], label="mocap x")
-    ax.plot(df.index, df[mocap_drone_y], label="mocap y")
-#     ax.plot(df.index, df[mocap_drone_z], label="mocap z")
-
-#     ax.plot(df.index, df[mocap_aligned_x], label="mocap x")
-#     ax.plot(df.index, df[mocap_aligned_y], label="mocap y")
-#     ax.plot(df.index, df[mocap_aligned_z], label="mocap z")
-
-#     ax.plot(df.index, df[mavros_in_x], label="mavros x")
-#     ax.plot(df.index, df[mavros_in_y], label="mavros y")
-#     ax.plot(df.index, df[mavros_in_z], label="mavros z")
-
-#     ax.plot(df.index, df[mavros_in_aligned_x], label="mavros x")
-    ax.plot(df.index, df[mavros_in_aligned_y], label="mavros y")
-#     ax.plot(df.index, df[mavros_in_aligned_z], label="mavros z")
+    df = add_error_columns(df, [mavros_in_aligned_x, mavros_in_aligned_y, mavros_in_aligned_z],
+                  [mocap_drone_x, mocap_drone_y, mocap_drone_z],
+                  [alignment_error_x, alignment_error_y, alignment_error_z],
+                   alignment_error_norm
+                  )
     
-#     ax.plot(df.index, df[mavros_drone_sp_x], label="mavros sp x")
-    ax.plot(df.index, df[mavros_drone_sp_y], label="mavros sp y")
-#     ax.plot(df.index, df[mavros_drone_sp_z], label="mavros sp z")
+    df = add_error_columns(df, 
+                  [mocap_gtsam_target_x, mocap_gtsam_target_y, mocap_gtsam_target_z],
+                  [mocap_target_x, mocap_target_y, mocap_target_z],
+                  [target_error_x, target_error_y, target_error_z],
+                           target_error_norm
+                  )
     
-    ax.plot(df.index, df[gripper_state])
-
-
-    # ax.plot(dfs[0].index, dfs[0][mocap_drone_qw], label="mocap qw")
-    # ax.plot(dfs[0].index, dfs[0][mocap_drone_qx], label="mocap qx")
-    # ax.plot(dfs[0].index, dfs[0][mocap_drone_qy], label="mocap qy")
-    # ax.plot(dfs[0].index, dfs[0][mocap_drone_qz], label="mocap qz")
-
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_qw], label="mavros qw")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_qx], label="mavros qx")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_qy], label="mavros qy")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_qz], label="mavros qz")
-
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_aligned_qw], label="mavros aligned qw")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_aligned_qx], label="mavros aligned qx")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_aligned_qy], label="mavros aligned qy")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_aligned_qz], label="mavros aligned qz")
-
-    ax.legend()
-    ax.set_xlim(left=0)
-
-#     print(dfs[0])
+    df = add_error_columns(df, 
+              [mavros_in_x, mavros_in_y, mavros_in_z],
+              [mavros_drone_sp_x, mavros_drone_sp_y, mavros_drone_sp_z],
+              [tracking_error_x, tracking_error_y, tracking_error_z],
+                       tracking_error_norm
+              )
+        
+mean_df, std_df = get_aggregate_df(dfs) 
 # -
 
-dfs[0][0]
+dfs[-1][alignment_error_x].dropna()
+print(mean_df)
 
 # +
-from scipy.spatial.transform import Rotation as R
+fig, ax = plt.subplots(1,1, figsize=(20,10))
+# ax.plot(dfs[2][mavros_in_aligned_x])
+# ax.plot(dfs[2][mocap_drone_x])
+# for df in dfs:
+#     ax.plot(df[mavros_in_aligned_x])
+    
+# ax.plot(mean_df[mavros_in_aligned_x])
+ax.plot(mean_df[mavros_in_aligned_x] - mean_df[mocap_drone_x])
+
+print(mean_df[mavros_in_aligned_x])
 
 
-
-def get_mocap_wrt_t265(df):
-    # Returns transform of mocap in t26 frame by running evo over short period
+# +
+def get_yaw(df, quat_topics):
     pass
     
-    
-for i, df in enumerate(dfs):
-    target_est_transform_df = pd.DataFrame()
-    df_sliced = df[0:]
-    T, _, mavros_aligned = align_mavros_to_mocap(df, start_time=0, num_poses=20)
-    mavros_wrt_mocap = make_tf(T[1], T[0])
-    
-#     aligned_df = pd.DataFrame()
-# #     df_sliced = df.loc[0:]
-#     aligned_df.index = df[0:].index
-#     aligned_df[mavros_in_aligned_x] = mavros_aligned.positions_xyz[:,0]
-#     aligned_df[mavros_in_aligned_y] = mavros_aligned.positions_xyz[:,1]
-#     aligned_df[mavros_in_aligned_z] = mavros_aligned.positions_xyz[:,2]
-#     aligned_df[mavros_in_aligned_qw] = mavros_aligned.orientations_quat_wxyz[:,0]
-#     aligned_df[mavros_in_aligned_qx] = mavros_aligned.orientations_quat_wxyz[:,1]
-#     aligned_df[mavros_in_aligned_qy] = mavros_aligned.orientations_quat_wxyz[:,2]
-#     aligned_df[mavros_in_aligned_qz] = mavros_aligned.orientations_quat_wxyz[:,3]
-#     dff = df.join(aligned_df)
-#     fig, ax = plt.subplots(1, 1, figsize=(15,5))
 
-#     ax.plot(dff.index, dff[mavros_in_aligned_x] - dff[mocap_drone_x], label="mocap x")
-#     ax.plot(dff.index, dff[mavros_in_aligned_y] - dff[mocap_drone_y], label="mocap y")
-#     ax.plot(dff.index, dff[mavros_in_aligned_z] - dff[mocap_drone_z], label="mocap z")
-#     ax.set_ylim([-.02,.02])
-#     ax.plot(dff.index, dff[mocap_drone_x], label="mocap x")
-#     ax.plot(dff.index, dff[mocap_drone_y], label="mocap y")
-#     ax.plot(dff.index, dff[mocap_drone_z], label="mocap z")
+def plot_composite_errors(df, ax):
+    pass
 
-#     ax.plot(dff.index, dff[mavros_in_aligned_x], label="mavros x")
-#     ax.plot(dff.index, dff[mavros_in_aligned_y], label="mavros y")
-#     ax.plot(dff.index, dff[mavros_in_aligned_z], label="mavros z")
+# fig, ax = plt.subplots(1,1, figsize=(20,10))
+# ax[0][0].plot(mean_df.index, mean_df["alignment_error_norm"])
+# for df in dfs:
+#     ax[0][0].plot(np.linalg.norm(mean_df[alignment_error_x],
+#                                  mean_df[alignment_error_y],
+#                                  mean_df[alignment_error_z]))
     
     
-    for index, row in df.iterrows():
-#         break
-        
-        
-    #     print(row)
-        target_position_t265 = np.array([row["gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.x"],
-                                         row["gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.y"],
-                                         row["gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.z"]])
+# ax[0][0].plot(mean_df.index, mean_df[gripper_state])    
+# for df in dfs:
+#     ax[0][1].set_aspect('equal', adjustable='box')
+#     ax[0][1].plot(df[-15:0][mocap_drone_x], df[-15:0][mocap_drone_y])
+#     ax[0][1].arrow(np.mean(df[mocap_target_x]), np.mean(df[mocap_target_y]), .1,.1)
 
-        if np.isnan(target_position_t265).any():
-            continue
+fig, ax = plt.subplots(1,1, figsize=(20,10))
+plot_mean_std(ax, mean_df, mean_df[alignment_error_norm], std_df[alignment_error_norm], label="VIO Drift Error")
+plot_mean_std(ax, mean_df, mean_df[target_error_norm], std_df[target_error_norm], label="Target Error")
+plot_mean_std(ax, mean_df, mean_df[tracking_error_norm], std_df[tracking_error_norm], label="Tracking Error")
+ax.vlines(x=[0], ymin=0, ymax=.25, colors='0.5', ls='--', lw=2)
+ax.vlines(x=[df[df[gripper_state] == 0].index[0]], ymin=0, ymax=.25, colors='0', ls='--', lw=2)
+ax.set_xlim(-5, 15)
+ax.set_ylim(0, 0.25)
+ax.legend()
 
-        target_rotation_t265 = np.array([row["gtsam_tracker_node-target_global_odom_estimate-pose.pose.orientation.x"],
-                                         row["gtsam_tracker_node-target_global_odom_estimate-pose.pose.orientation.y"],
-                                         row["gtsam_tracker_node-target_global_odom_estimate-pose.pose.orientation.z"],
-                                         row["gtsam_tracker_node-target_global_odom_estimate-pose.pose.orientation.w"]])
-        target_rotation_t265 = R.from_quat(target_rotation_t265).as_matrix()
+fig, ax = plt.subplots(1,1, figsize=(20,10))
+plot_mean_std(ax, mean_df, np.abs(mean_df[alignment_error_x]), np.abs(std_df[alignment_error_x]), label="VIO Drift Error x")
+plot_mean_std(ax, mean_df, np.abs(mean_df[target_error_x]), np.abs(std_df[target_error_x]), label="Target Error x")
+plot_mean_std(ax, mean_df, np.abs(mean_df[tracking_error_x]), np.abs(std_df[tracking_error_x]), label="Tracking Error x")
+ax.vlines(x=[0], ymin=0, ymax=.25, colors='0.5', ls='--', lw=2)
+ax.vlines(x=[df[df[gripper_state] == 0].index[0]], ymin=0, ymax=.25, colors='0', ls='--', lw=2)
+ax.set_xlim(-5, 15)
+ax.set_ylim(0, 0.25)
+ax.legend()
 
-        drone_position_t265 = np.array([row["mavros-odometry-in-pose.pose.position.x"],
-                                         row["mavros-odometry-in-pose.pose.position.y"],
-                                         row["mavros-odometry-in-pose.pose.position.z"]])
-        drone_rotation_t265 = np.array([row["mavros-odometry-in-pose.pose.orientation.x"],
-                                         row["mavros-odometry-in-pose.pose.orientation.y"],
-                                         row["mavros-odometry-in-pose.pose.orientation.z"],
-                                         row["mavros-odometry-in-pose.pose.orientation.w"]])
-        drone_rotation_t265 = R.from_quat(drone_rotation_t265).as_matrix()
+fig, ax = plt.subplots(1,1, figsize=(20,10))
+plot_mean_std(ax, mean_df, np.abs(mean_df[alignment_error_y]), np.abs(std_df[alignment_error_y]), label="VIO Drift Error y")
+plot_mean_std(ax, mean_df, np.abs(mean_df[target_error_y]), std_df[target_error_y], label="Target Error y")
+plot_mean_std(ax, mean_df, np.abs(mean_df[tracking_error_y]), std_df[tracking_error_y], label="Tracking Error y")
+ax.vlines(x=[0], ymin=0, ymax=.25, colors='0.5', ls='--', lw=2)
+ax.vlines(x=[df[df[gripper_state] == 0].index[0]], ymin=0, ymax=.25, colors='0', ls='--', lw=2)
+ax.set_xlim(-5, 15)
+ax.set_ylim(0, 0.25)
+ax.legend()
 
-        drone_position_mocap = np.array([row["sparksdrone-world-pose.position.x"],
-                                         row["sparksdrone-world-pose.position.y"],
-                                         row["sparksdrone-world-pose.position.z"]])
-        drone_rotation_mocap = np.array([row["sparksdrone-world-pose.orientation.x"],
-                                         row["sparksdrone-world-pose.orientation.y"],
-                                         row["sparksdrone-world-pose.orientation.z"],
-                                         row["sparksdrone-world-pose.orientation.w"]])
-        drone_rotation_mocap = R.from_quat(drone_rotation_mocap).as_matrix()
+fig, ax = plt.subplots(1,1, figsize=(20,10))
+plot_mean_std(ax, mean_df, np.abs(mean_df[alignment_error_z]), std_df[alignment_error_z], label="VIO Drift Error z")
+plot_mean_std(ax, mean_df, np.abs(mean_df[target_error_z]), std_df[target_error_z], label="Target Error z")
+plot_mean_std(ax, mean_df, np.abs(mean_df[tracking_error_z]), std_df[tracking_error_z], label="Tracking Error z")
+ax.vlines(x=[0], ymin=0, ymax=.25, colors='0.5', ls='--', lw=2)
+ax.vlines(x=[df[df[gripper_state] == 0].index[0]], ymin=0, ymax=.25, colors='0', ls='--', lw=2)
+ax.set_xlim(-5, 15)
+ax.set_ylim(0, 0.25)
+ax.legend()
 
-        target_position_mocap = np.array([row["sparkgrasptar-world-pose.position.x"],
-                                         row["sparkgrasptar-world-pose.position.y"],
-                                         row["sparkgrasptar-world-pose.position.z"]])
+# plot_mean_std(ax[1][0], mean_df, std_df, "alignment_error_x", label="VIO Drift Error x")
+# plot_mean_std(ax[1][0], mean_df, std_df, "target_error_x", label="Target Error x")
+# plot_mean_std(ax[1][0], mean_df, std_df, "tracking_error_x", label="Tracking Error x")
 
-        
-        T, _, mavros_aligned = align_mavros_to_mocap(df[index-4:index+4], start_time=index-4)
-#         mavros_wrt_mocap = make_tf(T[1], T[0])
+# plot_mean_std(ax[2][0], mean_df, std_df, "alignment_error_y", label="VIO Drift Error y")
+# plot_mean_std(ax[2][0], mean_df, std_df, "target_error_y", label="Target Error y")
+# plot_mean_std(ax[2][0], mean_df, std_df, "tracking_error_y", label="Tracking Error y")
 
+# plot_mean_std(ax[3][0], mean_df, std_df, "alignment_error_z", label="VIO Drift Error z")
+# plot_mean_std(ax[3][0], mean_df, std_df, "target_error_z", label="Target Error z")
+# plot_mean_std(ax[3][0], mean_df, std_df, "tracking_error_z", label="Tracking Error z")
 
+# for sub_ax in ax:
+#     sub_ax[0].vlines(x=[0], ymin=0, ymax=.25, colors='0.5', ls='--', lw=2)
+#     sub_ax[0].vlines(x=[df[df[gripper_state] == 0].index[0]], ymin=0, ymax=.25, colors='0', ls='--', lw=2)
+#     sub_ax[0].set_xlim(-5, 15)
+#     sub_ax[0].set_ylim(0, 0.25)
+#     sub_ax[0].legend()
 
-        target_wrt_mavros = make_tf(target_position_t265, target_rotation_t265)
-        px4_wrt_mavros = make_tf(drone_position_t265, drone_rotation_t265)
-        marker_wrt_mocap = make_tf(drone_position_mocap, drone_rotation_mocap)
-
-#         q = [
-#              0.3221715516423071,
-#              0.013395667410090696,
-#              -0.94657416484160961,
-#             0.0048371335970901425,
-#              ]
-#         e = [1.01, -0.042, -2.965 ]
-# #         r = R.from_quat(q).as_euler("xyz", degrees=True)
-#         r = R.from_euler("xyz", e, degrees=False).as_quat()
-#         print(r)
-#         t = np.array([-0.019, -0.036, -0.003])
-#         marker_wrt_px4 = make_tf(t, r)
-        target_wrt_mocap = marker_wrt_mocap.dot(np.linalg.inv(marker_wrt_px4)).dot(np.linalg.inv(px4_wrt_mavros)).dot(target_wrt_mavros)
-
-#         target_wrt_mocap = mavros_wrt_mocap.dot(target_wrt_mavros) 
-
-
-
-        target_est_transform_df.loc[index, 'target_est_x'] = target_wrt_mocap[0,3]
-        target_est_transform_df.loc[index, 'target_est_y'] = target_wrt_mocap[1,3]
-        target_est_transform_df.loc[index, 'target_est_z'] = target_wrt_mocap[2,3]
-
-
-    #     print("t265_wrt_mocap", t265_wrt_mocap)
-#         print("marker_wrt_mocap", marker_wrt_mocap)
-        print("marker_wrt_px4", marker_wrt_px4)
-#         print("px4_wrt_mavros", px4_wrt_mavros)
-        print("target_wrt_mavros", target_wrt_mavros)
-        print("mavros_wrt_mocap", mavros_wrt_mocap)
-        print("target_wrt_mocap", target_wrt_mocap)
-        print("target actual mocap", target_position_mocap)
-    #     print("Est", target_wrt_mocap[:3, 3].T)
-    #     print("GT", target_position_mocap)
-    #     print("tar_wrt_t265", target_wrt_t265)
-    #     print("drone_wrt_t265", drone_wrt_t265)
-    #     print("drone_wrt_mocap", drone_wrt_mocap)
-
-        print("error", target_wrt_mocap[:3, 3].T - target_position_mocap)
-
-    dfs[i] = dfs[i].join(target_est_transform_df)
-# dfs[0] = pd.merge(dfs[0], target_est_transform_df, left_index=True, right_index=True)
+# for df in dfs:
+#     ax[1][0].plot(df.index, df[mocap_drone_x])
+#     ax[1][0].plot(df.index, df[mocap_drone_y])
+#     ax[1][0].plot(df.index, df[mocap_drone_z])
     
-# -
-
-# target_est_transform_df
-dfs[0].index
-
-# +
-for df in dfs:
-    fig, ax = plt.subplots(1, 1, figsize=(15,5))
-
-    # ax.plot(dfs[0].index, dfs[0][mavros_gtsam_target_x], label="t265 est x")
-#     ax.plot(df.index, df[mavros_gtsam_target_y], label="t265 est y")
-    # ax.plot(dfs[0].index, dfs[0][mavros_gtsam_target_z], label="t265 est z")
+# plot_mean_std(ax[1][0], mean_df, std_df, mocap_drone_x, label="Mocap Drone x")
+# plot_mean_std(ax[1][0], mean_df, std_df, mocap_drone_y, label="Mocap Drone y")
+# plot_mean_std(ax[1][0], mean_df, std_df, mocap_drone_z, label="Mocap Drone z")
     
-    ax.plot(df.index, df[mocap_gtsam_target_x], label="mocap gtsam x")
-    ax.plot(df.index, df[mocap_gtsam_target_y], label="mocap gtsam y")
-    ax.plot(df.index, df[mocap_gtsam_target_z], label="mocap gtsam z")
+# plot_mean_std(ax[1][0], mean_df, std_df, mocap_target_x, label="Mocap Target x")
+# plot_mean_std(ax[1][0], mean_df, std_df, mocap_target_y, label="Mocap Target y")
+# plot_mean_std(ax[1][0], mean_df, std_df, mocap_target_z, label="Mocap Target z")
 
-    ax.plot(df.index, df[mocap_target_x], label="mocap x")
-    ax.plot(df.index, df[mocap_target_y], label="mocap y")
-    ax.plot(df.index, df[mocap_target_z], label="mocap z")
-
-#     ax.plot(df.index, df["target_est_x"], label="mocap est x")
-#     ax.plot(df.index, df["target_est_y"], label="mocap est y")
-#     ax.plot(df.index, df["target_est_z"], label="mocap est z")
-
-#     ax.plot(df.index, np.abs(df["target_est_x"] - df[mocap_target_x]), label="tf est x")
-#     ax.plot(df.index, np.abs(df["target_est_y"] - df[mocap_target_y]), label="tf est y")
-#     ax.plot(df.index, np.abs(df["target_est_z"] - df[mocap_target_z]), label="tf est z")
+# plot_mean_std(ax[1][0], mean_df, std_df, mocap_gtsam_target_x, label="Vision Target x")
+# plot_mean_std(ax[1][0], mean_df, std_df, mocap_gtsam_target_y, label="Vision Target y")
+# plot_mean_std(ax[1][0], mean_df, std_df, mocap_gtsam_target_z, label="Vision Target z")
     
-#     ax.plot(df.index, np.abs(df[mocap_gtsam_target_x] - df[mocap_target_x]), label="mocap est x")
-#     ax.plot(df.index, np.abs(df[mocap_gtsam_target_y] - df[mocap_target_y]), label="mocap est y")
-#     ax.plot(df.index, np.abs(df[mocap_gtsam_target_z] - df[mocap_target_z]), label="mocap est z")
-    
-#     ax.plot(df.index, np.linalg.norm([df["target_est_x"] - df[mocap_target_x],
-#                                        df["target_est_y"] - df[mocap_target_y],
-#                                        df["target_est_z"] - df[mocap_target_z]], axis=0), label="est norm")
-                  
-#     ax.plot(df.index, np.linalg.norm([df[mocap_gtsam_target_x] - df[mocap_target_x],
-#                                        df[mocap_gtsam_target_y] - df[mocap_target_y],
-#                                        df[mocap_gtsam_target_z] - df[mocap_target_z]], axis=0), label="mocap norm")
-#     ax.plot(df.index, np.abs(df[mocap_gtsam_target_y] - df[mocap_target_y]), label="mocap est y")
-#     ax.plot(df.index, np.abs(df[mocap_gtsam_target_z] - df[mocap_target_z]), label="mocap est z")
-
-    ax.plot(dfs[0].index, dfs[0][mocap_drone_x], label="drone mocap x")
-    ax.plot(dfs[0].index, dfs[0][mocap_drone_y], label="drone mocap y")
-    ax.plot(dfs[0].index, dfs[0][mocap_drone_z], label="drone mocap z")
-
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_x], label="drone t265 x")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_y], label="drone t265 y")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_z], label="drone t265 z")
-
-    # ax.plot(dfs[0].index, dfs[0]['t265_wrt_mocap_x'], label="t265 wrt mocap x")
-    # ax.plot(dfs[0].index, dfs[0]['t265_wrt_mocap_y'], label="t265 wrt mocap y")
-    # ax.plot(dfs[0].index, dfs[0]['t265_wrt_mocap_z'], label="t265 wrt mocap z")
-
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_x] + dfs[0][mocap_drone_x], label="sum x")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_y] + dfs[0][mocap_drone_y], label="sum y")
-    # ax.plot(dfs[0].index, dfs[0][mavros_in_z] + dfs[0][mocap_drone_z], label="sum z")
-
-    ax.set_xlim([-30,0])
-
-#     ax.set_ylim([0,.2])
-    ax.legend()
-
-
-# + active=""
-# print(mavros_wrt_mocap)
-# -
-
-#
-
-for rosbag, ulog in zip(rosbags, ulogs):
-    fig, ax = plt.subplots(1, 1, figsize=(15,5))
-#     ax.plot(ulog["commanded"].index, ulog["commanded"]["current.type"], label="Ulog x")
-#     ax.plot(ulog["visual_odometry"].index, -ulog["visual_odometry"]["x"], label="Ulog x")
-    ax.plot(ulog["visual_odometry"].index, -ulog["visual_odometry_y"], label="Ulog y")
-#     ax.plot(ulog["visual_odometry"].index, -ulog["visual_odometry"]["z"], label="-Ulog z")
-#     ax.plot(ulog["position"].index, -ulog["position"]["x"], label="Ulog pos x")
-#     ax.plot(ulog["position"].index, -ulog["position"]["y"], label="Ulog pos y")
-#     ax.plot(ulog["position"].index, -ulog["position"]["z"], label="-Ulog pos z")
-    ax.plot(rosbag.index, rosbag["mavros-odometry-out-pose.pose.position.x"], label="Bag x")
-#     ax.plot(rosbag.index, rosbag["mavros-odometry-out-pose.pose.position.y"], label="Bag y")
-#     ax.plot(rosbag.index, rosbag["mavros-odometry-out-pose.pose.position.z"], label="Bag z")
-#     ax.plot(rosbag.index, rosbag["grasp_state_machine_node-grasp_started-data"], label="Bag z")
-#     ax.set_xlim(right=25)
-    ax.legend()
-
-
-
-print(rosbags[0].index)
-
-
-# +
-def reindex_df(df, dt="100ms"):
-    all_int_cols = ["current.type", "grasp_state_machine_node-grasp_started-data"]
-    all_cols = df.columns
-    float_cols = [x for x in all_cols if x not in all_int_cols]
-    int_cols = [x for x in all_cols if x in all_int_cols]
-    df.set_index('times', inplace=True, drop=False)
-    df.index = pd.to_timedelta(df.index, unit='s')
-#     print("Before reindex", df.index)
-    times = pd.timedelta_range(start='0s', freq=dt, periods=len(df))
-    df = df.reindex(df.index.union(times))
-#     print("Reindexed", df.index)
-#     print("Reindexed", df["mavros-odometry-out-pose.pose.position.x"])
-    df.loc[:,float_cols] = df.loc[:,float_cols].interpolate(method='time')
-    
-    df.loc[:,int_cols] = df.loc[:,int_cols].ffill()
-    df = df.reindex(times)
-#     print(df.index)
-    return df
-
-def recenter_df(df, start_time):
-    start_time = pd.to_timedelta(start_time, unit='s')
-    idx = df.index.get_loc(start_time, method='nearest')
-    nearest_time = df.iloc[[idx]].index
-    delta = nearest_time.to_pytimedelta()
-    df.index = (df.index - delta).total_seconds()
-    return df
-
-def get_rosbag_trajectory_start(rosbag):
-    return rosbag["grasp_state_machine_node-grasp_started-data"].dropna().index[0]
-
-aligned_pos_dfs = []
-aligned_cmd_dfs = []
-aligned_vo_dfs = []
-for ulog in ulogs:
-    aligned_pos_df = reindex_df(ulog["position"])
-    aligned_pos_dfs.append(aligned_pos_df)
-    aligned_cmd_df = reindex_df(ulog["commanded"], dt="200ms")
-    aligned_cmd_dfs.append(aligned_cmd_df)
-    aligned_vo_df = reindex_df(ulog["visual_odometry"])
-    aligned_vo_dfs.append(aligned_vo_df)
-    
-    start_time, end_time = get_trajectory_bounds({"commanded": aligned_cmd_df}, 10, start_padding=0.0)
-    recenter_df(aligned_pos_df, start_time)
-    recenter_df(aligned_vo_df, start_time)
-    
-aligned_rosbag_dfs = []
-import datetime
-for i, rosbag in enumerate(rosbags):
-    rosbag.index = pd.to_timedelta(rosbag.index.strftime('%H:%M:%S.%f'))
-    delta = rosbag.iloc[[0]].index.to_pytimedelta()
-    rosbag.index = (rosbag.index - delta).total_seconds()
-    rosbag["times"] = rosbag.index
-    aligned_rosbag_df = reindex_df(rosbag, dt="100ms")
-    orig_index = aligned_rosbag_df.index.copy()
-    print(orig_index)
-    rosbag_start_time = get_rosbag_trajectory_start(aligned_rosbag_df)
-#     print("Bag start", rosbag_start_time)
-#     aligned_rosbag_df.index = (aligned_rosbag_df.index - rosbag_start_time).total_seconds()
-#     print(aligned_rosbag_df["mavros-odometry-out-pose.pose.position.x"])
-    error = 1
-    last_error = np.inf
-    count = 1
-    while error <= last_error:
-        aligned_rosbag_df.index = (aligned_rosbag_df.index).total_seconds()
-        print("------------------------------")
-        if count > 1:
-            last_error = error
-        error = np.linalg.norm(-aligned_vo_dfs[i]["y"].values[:len(aligned_rosbag_df)] - aligned_rosbag_df["mavros-odometry-out-pose.pose.position.x"].values)
-#         error = np.mean(- aligned_vo_df["x"] - aligned_rosbag_df["mavros-odometry-out-pose.pose.position.x"])
-#         print("Error", error)
-#         print("Last Error", last_error)
-#         print("REF", -aligned_vo_dfs[i]["y"].values[500])
-#         print("CUR", aligned_rosbag_df["mavros-odometry-out-pose.pose.position.x"].values[500])
-#         print(aligned_rosbag_df.index)
-        aligned_rosbag_df.index =  (aligned_rosbag_df.index - 0.005 * count)
-        aligned_rosbag_df["times"] = aligned_rosbag_df.index
-#         print(aligned_rosbag_df.index)
-#         print("Before", aligned_rosbag_df["mavros-odometry-out-pose.pose.position.x"])
-        aligned_rosbag_df = reindex_df(aligned_rosbag_df, dt="100ms")
-        
-#         print("After", aligned_rosbag_df["mavros-odometry-out-pose.pose.position.x"])
-        count += 1
-    print("Shifted ", 0.005* count)
-#         break
-#         aligned_rosbag_df.index = aligned_rosbag_df.index.total_seconds()
-    aligned_rosbag_df.index = (orig_index - rosbag_start_time).total_seconds() - 0.005 * (count -1)
-    aligned_rosbag_dfs.append(aligned_rosbag_df)
-
 
 # -
-
-aligned_cmd_dfs[0].index
-
-np.linalg.norm(-aligned_vo_df["x"].values[:len(aligned_rosbag_df)] - aligned_rosbag_df["mavros-odometry-out-pose.pose.position.x"].values)
-
-print(-aligned_vo_dfs[0]["y"])
-# print(aligned_rosbag_dfs[0]["mavros-odometry-out-pose.pose.position.x"].values[250])
-
-# +
-for ulog, bag in zip(aligned_vo_dfs, aligned_rosbag_dfs):
-    fig, ax = plt.subplots(1, 1, figsize=(15,5))
-    
-#     times = np.array(ulog.index)
-#     positions = np.array([ulog["x"], ulog["y"], ulog["z"]]).T
-#     quaternions_wxyz = np.array([ulog["q[0]"], ulog["q[1]"], ulog["q[2]"], ulog["q[3]"]]).T
-#     ulog_evo = convert_traj_to_evo(positions, quaternions_wxyz, times)
-
-#     times = np.array(bag.index)
-#     positions = np.array([bag["mavros-odometry-out-pose.pose.position.x"], 
-#                           bag["mavros-odometry-out-pose.pose.position.y"],
-#                           bag["mavros-odometry-out-pose.pose.position.z"]]).T
-#     quaternions_wxyz = np.array([bag["mavros-odometry-out-pose.pose.orientation.w"],
-#                                  bag["mavros-odometry-out-pose.pose.orientation.x"], 
-#                                  bag["mavros-odometry-out-pose.pose.orientation.y"], 
-#                                  bag["mavros-odometry-out-pose.pose.orientation.z"]]).T
-#     bag_evo = convert_traj_to_evo(positions, quaternions_wxyz, times)
-
-#     T, (bag_synced, ulog_synced) = get_aligned_trajectories(ulog_evo, bag_evo)
-    
-#     ax.plot(ulog_synced.timestamps, ulog_synced.positions_xyz[:,0], label="Ulog x")
-#     ax.plot(ulog_synced.timestamps, ulog_synced.positions_xyz[:,1], label="Ulog y")
-#     ax.plot(ulog_synced.timestamps, ulog_synced.positions_xyz[:,2], label="Ulog z")
-#     ax.plot(bag_synced.timestamps, bag_synced.positions_xyz[:,0], label="Bag x")
-#     ax.plot(bag_synced.timestamps, bag_synced.positions_xyz[:,1], label="Bag y")
-#     ax.plot(bag_synced.timestamps, bag_synced.positions_xyz[:,2], label="Bag z")
-
-#     print(T)
-#     print(ulog_synced.positions_xyz[:,0])
-    ax.plot(ulog.index, -ulog["x"], label="Ulog x")
-    ax.plot(ulog.index, -ulog["y"], label="Ulog y")
-    ax.plot(ulog.index, -ulog["z"], label="-Ulog z")
-    ax.plot(bag.index, bag["mavros-odometry-out-pose.pose.position.x"], label="Bag x")
-    ax.plot(bag.index, bag["mavros-odometry-out-pose.pose.position.y"], label="Bag y")
-    ax.plot(bag.index, bag["mavros-odometry-out-pose.pose.position.z"], label="Bag z")
-    ax.set_xlim(right=25)
-    ax.legend()
-    
-# -
-
-for col in bag.columns:
-    print(col)
-    
-
-aligned_rosbag_df["grasp_state_machine_node-grasp_started-data"].dropna()
-
-ulogs[0]["commanded"].plot(y=["current.type"])
 
 # # Mocap Turntable 0.5 m/s
 
