@@ -509,9 +509,7 @@ def reindex_rosbags(rosbags, sample_rate=10):
     for i in range(len(rosbags)):
         rosbags[i] = reindex_df(rosbags[i], 
                                 int_cols=[grasp_segment, gripper_state])
- 
-# def get_rosbag_grasp_time(rosbag):
-#     print(rosbag["cmd_gripper_sub-data"])
+
        
 def get_rosbag_grasp_start_time(rosbag):
 #     return rosbag["grasp_state_machine_node-grasp_started-data"].dropna().index[0]
@@ -726,8 +724,6 @@ def create_aligned_mocap(dfs):
         
 def refine_temporal_alignment_single(ulog, rosbag, rosbag_vo_x_topic, should_flip=False):
     # Bag always lags behind ulog, so shift bag left until error is minimized
-#     rosbag.index += 1
-#     rosbag = reindex_df(rosbag, int_cols=[grasp_segment, gripper_state])
     step = 0.02
     shift = 0
     size = 500
@@ -749,12 +745,6 @@ def refine_temporal_alignment_single(ulog, rosbag, rosbag_vo_x_topic, should_fli
         error = np.sum(np.abs(ulog_arr[ulog_center - size: ulog_center + size] - bag_arr[bag_center - size: bag_center + size]))
         rosbag.index -= step
         rosbag = reindex_df(rosbag, int_cols=[grasp_segment, gripper_state])
-        
-#         fig, ax = plt.subplots(1,1, figsize=(12,6))
-# #         rosbag.plot(y=[rosbag_vo_x_topic], ax=ax)
-# #         ulog["visual_odometry"].plot(y=["z"], ax=ax)
-#         ax.plot(rosbag.index, rosbag[rosbag_vo_x_topic].values, label="Bag")
-#         ax.plot(ulog["visual_odometry"].index, -ulog["visual_odometry"]["z"].values, label="Ulog")
         
     # Add back step bc algo steps one too far    
     rosbag.index += step
@@ -848,13 +838,9 @@ def create_pose_wrt_tar_single(df, static=True, vision=True, ulog=True, mavros=T
     def transform_pos_vel(drone_wrt_odom_pos, drone_wrt_odom_vel):
         drone_wrt_tar_pos = np.subtract(drone_wrt_odom_pos, tar_wrt_odom_pos)
         drone_wrt_tar_vel = drone_wrt_odom_vel - tar_wrt_odom_vel - np.cross(tar_wrt_odom_ang_vel, drone_wrt_tar_pos)
-#         print(tar_wrt_odom_R.shape)
-#         print(drone_wrt_tar_vel.T.shape)
-#         print(drone_wrt_tar_vel)
 
         drone_wrt_tar_pos = np.expand_dims(drone_wrt_tar_pos, axis=2)
         drone_wrt_tar_vel = np.expand_dims(drone_wrt_tar_vel, axis=2)
-        print(tar_wrt_odom_R)
         return (tar_wrt_odom_R @ (drone_wrt_tar_pos)), (tar_wrt_odom_R @ (drone_wrt_tar_vel))
    
     if ulog:
@@ -865,8 +851,7 @@ def create_pose_wrt_tar_single(df, static=True, vision=True, ulog=True, mavros=T
         ulog_wrt_odom_pos = np.array([df[ulog_y], df[ulog_x], -df[ulog_z]]).T
         ulog_wrt_odom_vel = np.array([df[ulog_vy], df[ulog_vx], -df[ulog_vz]]).T
         ulog_wrt_tar_pos, ulog_wrt_tar_vel = transform_pos_vel(ulog_wrt_odom_pos, ulog_wrt_odom_vel)
-        
-#         print(ulog_sp_wrt_tar_pos.shape)
+
         df[ulog_sp_wrt_tar_x] = ulog_sp_wrt_tar_pos[:,0]
         df[ulog_sp_wrt_tar_y] = ulog_sp_wrt_tar_pos[:,1]
         df[ulog_sp_wrt_tar_z] = ulog_sp_wrt_tar_pos[:,2]
@@ -979,9 +964,6 @@ def add_error_columns(df, topics_1, topics_2, error_topics, norm_name):
 def verify_alignment(dfs):
     for df in dfs:
         fig, ax = plt.subplots(1, 1, figsize=(15,10))
-#         ax.plot(df.index, df[mocap_drone_x] - df[mavros_in_aligned_x], label="Mocap Drone x")
-#         ax.plot(df.index, df[mocap_drone_y] - df[mavros_in_aligned_y], label="Mocap Drone y")
-#         ax.plot(df.index, df[mocap_drone_z] - df[mavros_in_aligned_z], label="Mocap Drone z")
 
         ax.plot(df.index, df[mocap_drone_x], label="Mocap Drone x")
         ax.plot(df.index, df[mocap_drone_y], label="Mocap Drone y")
@@ -994,24 +976,10 @@ def verify_alignment(dfs):
         ax.axvline(x=[df[df[gripper_state] == 0].index[0]], color='0.5', ls='--', lw=2)
         display(fig)
         plt.close()
-#         fig, ax = plt.subplots(1, 1, figsize=(15,10))
-#         ax.plot(df.index, df[mavros_in_x], label="Marvros x")
-#         ax.plot(df.index, df[mavros_in_y], label="Marvros y")
-#         ax.plot(df.index, df[mavros_in_z], label="Marvros z")
-        
-#         ax.plot(df.index, df[mavros_drone_sp_x], label="Marvros sp x")
-#         ax.plot(df.index, df[mavros_drone_sp_y], label="Marvros sp y")
-#         ax.plot(df.index, df[mavros_drone_sp_z], label="Marvros sp z")
-#         ax.legend()
-#         ax.axvline(x=[df[df[gripper_state] == 0].index[0]], color='0.5', ls='--', lw=2)
 
 def verify_alignment_mocap(dfs):
     for df in dfs:
         fig, ax = plt.subplots(1, 1, figsize=(15,10))
-#         ax.plot(df.index, df[mocap_drone_x] - df[mavros_in_aligned_x], label="Mocap Drone x")
-#         ax.plot(df.index, df[mocap_drone_y] - df[mavros_in_aligned_y], label="Mocap Drone y")
-#         ax.plot(df.index, df[mocap_drone_z] - df[mavros_in_aligned_z], label="Mocap Drone z")
-
         ax.plot(df.index, df[mocap_aligned_x], label="Mocap aligned x")
         ax.plot(df.index, df[mocap_aligned_y], label="Mocap aligned y")
         ax.plot(df.index, df[mocap_aligned_z], label="Mocap aligned z")
@@ -1115,16 +1083,10 @@ def check_relative_pos(dfs, ulog=True):
             ax.plot(sliced_df[mavros_wrt_tar_y], label="Lateral")
             ax.plot(sliced_df[mavros_wrt_tar_z], label="Vertical")
             
-#         plot_mean_std(ax, df, medkit_mean_df[ulog_wrt_tar_pos_error_norm], medkit_std_df[ulog_wrt_tar_pos_error_norm], label="Med-kit")
-#         plot_mean_std(ax, pepsi_mean_df, pepsi_mean_df[ulog_wrt_tar_pos_error_norm], pepsi_std_df[ulog_wrt_tar_pos_error_norm], label="Two-liter")
-#         plot_mean_std(ax, cardboard_box_mean_df, cardboard_box_mean_df[ulog_wrt_tar_pos_error_norm], cardboard_box_std_df[ulog_wrt_tar_pos_error_norm], label="Cardboard Box")
         ax.axvline(x=[0], color='0.5', ls='--', lw=2)
         ax.axvline(x=[4], color='0', ls='--', lw=2)
-#         ax.set_xlim(0, 15)
-#         ax.set_ylim(0, 0.25)
         ax.set_ylabel('Pos. [m]')
         ax.set_xlabel('Time [s]')
-        # ax.set_xticklabels([])
         ax.legend()
     display(fig)
     plt.close()
@@ -1143,8 +1105,6 @@ def check_mean_and_std(dfs, mean_df, std_df, ulog=True):
     std = np.std(topic_xs, axis=0, ddof=1)
     mean_df_mean = mean_df[-4:8][topic]
     std_df_std = std_df[-4:8][topic]
-    print(mean)
-    print(mean_df_mean)
     print(np.allclose(mean, mean_df_mean))
     print(np.allclose(std, std_df_std))
     
@@ -1173,11 +1133,8 @@ def check_traj(dfs, ulog=True):
             ax.plot(sliced_df[mavros_in_z], label="mavros z")
         ax.axvline(x=[0], color='0.5', ls='--', lw=2)
         ax.axvline(x=[4], color='0', ls='--', lw=2)
-#         ax.set_xlim(0, 15)
-#         ax.set_ylim(0, 0.25)
         ax.set_ylabel('Pos. [m]')
         ax.set_xlabel('Time [s]')
-        # ax.set_xticklabels([])
         ax.legend()
         display(fig)
         plt.close()
@@ -1193,11 +1150,8 @@ def check_traj(dfs, ulog=True):
             ax.plot(sliced_df[mavros_in_vz], label="mavros vz")
         ax.axvline(x=[0], color='0.5', ls='--', lw=2)
         ax.axvline(x=[4], color='0', ls='--', lw=2)
-#         ax.set_xlim(0, 15)
-#         ax.set_ylim(0, 0.25)
         ax.set_ylabel('Vel. [m]')
         ax.set_xlabel('Time [s]')
-        # ax.set_xticklabels([])
         ax.legend()
         display(fig)
         plt.close()
@@ -1232,7 +1186,6 @@ def check_grasp_velocity(dfs, ulog=True, topic=mocap_drone_x):
     for df in dfs:
         start = df.loc[[3.5]][topic].values
         end = df.loc[[4.5]][topic].values
-#         print(start.values)
         print( (end- start) / 1)
     
 def check_relative_error(mean_df, ulog=True):
@@ -1270,13 +1223,8 @@ def confirm_accuracy(dfs, mean_df, std_df, alignment_topic=None, should_flip=Fal
         check_grasp_velocity(dfs, topic=mocap_grasp_axis)
     print("Check that normal and relative target errors are identical...")
     check_relative_error(mean_df, ulog=ulog)
-    
-    
 
-#     print("Check that pos wrt to tar is basically same as global pos...")
-#     check_relative_pos(dfs)
-    
-    
+
 # -
 
 # # Static Plots
@@ -1292,7 +1240,6 @@ bag_result_location = "../FinalPass/vision_medkit_05ms"
 medkit_dfs = create_dfs(ulog_location, ulog_result_location, 
                         bag_location, bag_result_location, 
                         alignment_topic=mavros_out_x)
-validate_alignment(medkit_dfs, mavros_out_x)
 create_aligned_mavros(medkit_dfs)
 create_pose_wrt_tar(medkit_dfs)
 create_aligned_mocap(medkit_dfs)
@@ -1306,7 +1253,6 @@ cardboard_box_dfs = create_dfs(ulog_location, ulog_result_location,
                  bag_location, bag_result_location, 
                  alignment_topic=mavros_out_x)
 del cardboard_box_dfs[9]
-validate_alignment(cardboard_box_dfs, mavros_out_x)
 create_aligned_mavros(cardboard_box_dfs)
 create_pose_wrt_tar(cardboard_box_dfs)
 create_aligned_mocap(cardboard_box_dfs)
@@ -1319,7 +1265,6 @@ bag_result_location = "../FinalPass/vision_pepsi_05ms"
 pepsi_dfs = create_dfs(ulog_location, ulog_result_location, 
                  bag_location, bag_result_location, 
                  alignment_topic=mavros_out_x)
-validate_alignment(pepsi_dfs, mavros_out_x)
 create_aligned_mavros(pepsi_dfs)
 create_pose_wrt_tar(pepsi_dfs)
 create_aligned_mocap(pepsi_dfs)
@@ -1333,7 +1278,6 @@ pepsi_mid_dfs = create_dfs(ulog_location, ulog_result_location,
                  bag_location, bag_result_location, 
                  alignment_topic=mavros_out_x)
 del pepsi_mid_dfs[10]
-validate_alignment(pepsi_mid_dfs, mavros_out_x)
 create_aligned_mavros(pepsi_mid_dfs)
 create_pose_wrt_tar(pepsi_mid_dfs)
 create_aligned_mocap(pepsi_mid_dfs)
@@ -1347,7 +1291,6 @@ pepsi_fast_dfs = create_dfs(ulog_location, ulog_result_location,
                  bag_location, bag_result_location, 
                  alignment_topic=mavros_out_x)
 del pepsi_fast_dfs[10]
-validate_alignment(pepsi_fast_dfs, mavros_out_x)
 create_aligned_mavros(pepsi_fast_dfs)
 create_pose_wrt_tar(pepsi_fast_dfs)
 create_aligned_mocap(pepsi_fast_dfs)
@@ -1618,17 +1561,6 @@ def get_all_errors(dfs, ulog=True, target=True):
         avg_tracking_error[i] = tracking_error
         abs_avg_tracking_error[i] = abs_tracking_error
     
-#     avg_error_R /= len(dfs)
-#     avg_error_t /= len(dfs)
-# #     abs_avg_error_t /= len(dfs)
-#     avg_error_t_norm /= len(dfs)
-#     avg_error_yaw /= len(dfs)
-#     avg_vio_error /= len(dfs)
-#     avg_vio_error_norm /= len(dfs)
-#     mocap_avg_vio_error /= len(dfs)
-#     mocap_avg_vio_error_norm /= len(dfs)
-#     avg_tracking_error /= len(dfs)
-#     abs_avg_tracking_error /= len(dfs)
     actual_speed = get_speed_at_grasp(pepsi_mean_df)
     
     
@@ -1738,39 +1670,8 @@ actual_speed, avg_tracking_error, abs_avg_tracking_error = get_all_errors(pepsi_
 
 print_metrics(avg_error_R, avg_error_t, abs_avg_error_t, avg_error_t_norm, avg_error_yaw,\
                   avg_vio_error, avg_vio_error_norm, mocap_avg_vio_error, mocap_avg_vio_error_norm,\
-                  actual_speed, avg_tracking_error, abs_avg_tracking_error)
+                  actual_speed, avg_tracking_error, abs_avg_tracking_error)   
 
-# print("Outdoors Metrics:")
-# avg_error_R, avg_error_t, abs_avg_error_t, avg_error_t_norm, avg_error_yaw,\
-# avg_vio_error, avg_vio_error_norm, mocap_avg_vio_error, mocap_avg_vio_error_norm,\
-# actual_speed, abs_avg_tracking_error = get_all_errors(outdoors_dfs, ulog=False)
-
-# print_metrics(avg_error_R, avg_error_t, abs_avg_error_t, avg_error_t_norm, avg_error_yaw,\
-#                   avg_vio_error, avg_vio_error_norm, mocap_avg_vio_error, mocap_avg_vio_error_norm,\
-#                   actual_speed, abs_avg_tracking_error)
-
-
-
-# avg_error_R, avg_error_t, abs_avg_error_t, avg_error_t_norm, avg_error_yaw = get_all_errors(pepsi_dfs)
-
-# print("Pepsi Metrics:")
-# print("Average Rotation Error: {}".format(avg_error_R))
-# print("Average Translation Error: {}".format(avg_error_t))
-# print("Average Translation Error Norm: {}".format(avg_error_t_norm))
-# print("Average Abs Translation Error: {}".format(abs_avg_error_t))
-# print("Average Yaw Error: {}".format(avg_error_yaw))
-# print("-------------------------------------------")
-
-# avg_error_R, avg_error_t, abs_avg_error_t, avg_error_t_norm, avg_error_yaw = get_all_errors(cardboard_box_dfs)
-# print("Cardboard Box Metrics:")
-# print("Average Rotation Error: {}".format(avg_error_R))
-# print("Average Translation Error: {}".format(avg_error_t))
-# print("Average Translation Error Norm: {}".format(avg_error_t_norm))
-# print("Average Abs Translation Error: {}".format(abs_avg_error_t))
-# print("Average Yaw Error: {}".format(avg_error_yaw))
-# print("-------------------------------------------")
-    
-    
 
 # +
 # VIO Drift Table
@@ -1840,19 +1741,17 @@ get_table_entry(pepsi_fastest_dfs, pepsi_fastest_mean_df)
 # # Moving Plots
 
 # +
-# ulog_location = "../FinalPass/mocap_a1_slow"
-# ulog_result_location = "../FinalPass/log_output"
-# bag_location = "../FinalPass/mocap_a1_slow"
-# bag_result_location = "../FinalPass/mocap_a1_slow"
+ulog_location = "../FinalPass/mocap_a1_slow"
+ulog_result_location = "../FinalPass/log_output"
+bag_location = "../FinalPass/mocap_a1_slow"
+bag_result_location = "../FinalPass/mocap_a1_slow"
 
-# a1_slow_dfs = create_dfs(ulog_location, ulog_result_location, 
-#                  bag_location, bag_result_location, 
-#                  alignment_topic=mocap_drone_x,
-#                  should_flip=True)
-# validate_alignment(a1_slow_dfs, mocap_drone_x, should_flip=True)
-# del a1_slow_dfs[4]
-# create_pose_wrt_tar(a1_slow_dfs, static=False, mavros=False)
-
+a1_slow_dfs = create_dfs(ulog_location, ulog_result_location, 
+                 bag_location, bag_result_location, 
+                 alignment_topic=mocap_drone_x,
+                 should_flip=True)
+del a1_slow_dfs[4]
+create_pose_wrt_tar(a1_slow_dfs, static=False, mavros=False)
 
 ulog_location = "../FinalPass/mocap_a1_fast"
 ulog_result_location = "../FinalPass/log_output"
@@ -1863,51 +1762,45 @@ a1_fast_dfs = create_dfs(ulog_location, ulog_result_location,
                  bag_location, bag_result_location, 
                  alignment_topic=mocap_drone_x,
                  should_flip=True)
-validate_alignment(a1_fast_dfs, mocap_drone_x, should_flip=True)
 create_pose_wrt_tar(a1_fast_dfs, static=False, mavros=False)
-del a1_fast_dfs[10]
 del a1_fast_dfs[11]
+del a1_fast_dfs[10]
 
 
-# ulog_location = "../FinalPass/mocap_turntable_05ms"
-# ulog_result_location = "../FinalPass/log_output"
-# bag_location = "../FinalPass/mocap_turntable_05ms"
-# bag_result_location = "../FinalPass/mocap_turntable_05ms"
+ulog_location = "../FinalPass/mocap_turntable_05ms"
+ulog_result_location = "../FinalPass/log_output"
+bag_location = "../FinalPass/mocap_turntable_05ms"
+bag_result_location = "../FinalPass/mocap_turntable_05ms"
 
-# turn_dfs = create_dfs(ulog_location, ulog_result_location, 
-#                  bag_location, bag_result_location, 
-#                  alignment_topic=mocap_drone_x,
-#                  should_flip=True)
-# validate_alignment(turn_dfs, mocap_drone_x, should_flip=True)
-# create_pose_wrt_tar(turn_dfs, static=False, mavros=False)
-
-
-# ulog_location = "../FinalPass/mocap_turntable_1ms"
-# ulog_result_location = "../FinalPass/log_output"
-# bag_location = "../FinalPass/mocap_turntable_1ms"
-# bag_result_location = "../FinalPass/mocap_turntable_1ms"
-
-# turn_mid_dfs = create_dfs(ulog_location, ulog_result_location, 
-#                  bag_location, bag_result_location, 
-#                  alignment_topic=mocap_drone_x,
-#                  should_flip=True)
-# validate_alignment(turn_mid_dfs, mocap_drone_x, should_flip=True)
-# create_pose_wrt_tar(turn_mid_dfs, static=False, mavros=False)
+turn_dfs = create_dfs(ulog_location, ulog_result_location, 
+                 bag_location, bag_result_location, 
+                 alignment_topic=mocap_drone_x,
+                 should_flip=True)
+create_pose_wrt_tar(turn_dfs, static=False, mavros=False)
 
 
-# ulog_location = "../FinalPass/mocap_turntable_15ms"
-# ulog_result_location = "../FinalPass/log_output"
-# bag_location = "../FinalPass/mocap_turntable_15ms"
-# bag_result_location = "../FinalPasss/mocap_turntable_15ms"
+ulog_location = "../FinalPass/mocap_turntable_1ms"
+ulog_result_location = "../FinalPass/log_output"
+bag_location = "../FinalPass/mocap_turntable_1ms"
+bag_result_location = "../FinalPass/mocap_turntable_1ms"
 
-# turn_fast_dfs = create_dfs(ulog_location, ulog_result_location, 
-#                  bag_location, bag_result_location, 
-#                  alignment_topic=mocap_drone_x,
-#                  should_flip=True)
-# validate_alignment(turn_fast_dfs, mocap_drone_x, should_flip=True)
-# create_pose_wrt_tar(turn_fast_dfs, static=False, mavros=False)
+turn_mid_dfs = create_dfs(ulog_location, ulog_result_location, 
+                 bag_location, bag_result_location, 
+                 alignment_topic=mocap_drone_x,
+                 should_flip=True)
+create_pose_wrt_tar(turn_mid_dfs, static=False, mavros=False)
 
 
+ulog_location = "../FinalPass/mocap_turntable_15ms"
+ulog_result_location = "../FinalPass/log_output"
+bag_location = "../FinalPass/mocap_turntable_15ms"
+bag_result_location = "../FinalPasss/mocap_turntable_15ms"
+
+turn_fast_dfs = create_dfs(ulog_location, ulog_result_location, 
+                 bag_location, bag_result_location, 
+                 alignment_topic=mocap_drone_x,
+                 should_flip=True)
+create_pose_wrt_tar(turn_fast_dfs, static=False, mavros=False)
 
 # +
 add_drone_velocities(a1_slow_dfs)
@@ -1960,17 +1853,6 @@ print("turn 15 std", 100 * get_tracking_error(odds_turn_fast_std_df)[1])
 print("-----------------")
 
 # +
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-# plot_mean_std(ax, a1_fast_mean_df, a1_fast_mean_df[ulog_wrt_tar_x], a1_fast_std_df[ulog_wrt_tar_x], label="Slow")
-# plot_mean_std(ax, odds_turn_mean_df, odds_turn_mean_df[ulog_wrt_tar_y], odds_turn_std_df[ulog_wrt_tar_y], label="wrt tar")
-# plot_mean_std(ax, odds_turn_mean_df, odds_turn_mean_df[ulog_sp_wrt_tar_x], odds_turn_std_df[ulog_sp_wrt_tar_x], label="wrt tar")
-plot_mean_std(ax, a1_slow_mean_df, a1_slow_mean_df[ulog_pos_error_norm], a1_slow_std_df[ulog_pos_error_norm], label="Slow")
-plot_mean_std(ax, a1_slow_mean_df, a1_slow_mean_df[ulog_wrt_tar_pos_error_norm], a1_slow_std_df[ulog_wrt_tar_pos_error_norm], label="Slow")
-
-ax.legend()
-
-
-# +
 # Tracking Errors
 fig, ax = plt.subplots(1,1, figsize=(12,6))
 plot_mean_std(ax, a1_slow_mean_df, a1_slow_mean_df[ulog_pos_error_norm], a1_slow_std_df[ulog_pos_error_norm], label="Slow")
@@ -1978,10 +1860,8 @@ plot_mean_std(ax, a1_fast_mean_df, a1_fast_mean_df[ulog_pos_error_norm], a1_fast
 ax.axvline(x=[0], color='0.5', ls='--', lw=2)
 ax.axvline(x=[4], color='0', ls='--', lw=2)
 ax.set_xlim(0, 15)
-# ax.set_ylim(0, 0.25)
 ax.set_ylabel('Pos. Errors [m]')
 ax.set_xlabel('Time [s]')
-# ax.set_xticklabels([])
 ax.legend()
 fig.savefig('a1_pos_err.svg')
 
@@ -1991,10 +1871,8 @@ plot_mean_std(ax, a1_fast_mean_df, a1_fast_mean_df[ulog_vel_error_norm], a1_fast
 ax.axvline(x=[0], color='0.5', ls='--', lw=2)
 ax.axvline(x=[4], color='0', ls='--', lw=2)
 ax.set_xlim(0, 15)
-# ax.set_ylim(0, 0.25)
 ax.set_ylabel('Vel. Errors [m]')
 ax.set_xlabel('Time [s]')
-# ax.set_xticklabels([])
 ax.legend()
 fig.savefig('a1_vel_err.svg')
 
@@ -2005,10 +1883,8 @@ plot_mean_std(ax, odds_turn_fast_mean_df, odds_turn_fast_mean_df[ulog_pos_error_
 ax.axvline(x=[0], color='0.5', ls='--', lw=2)
 ax.axvline(x=[4], color='0', ls='--', lw=2)
 ax.set_xlim(0, 15)
-# ax.set_ylim(0, 0.25)
 ax.set_ylabel('Pos. Errors [m]')
 ax.set_xlabel('Time [s]')
-# ax.set_xticklabels([])
 ax.legend()
 fig.savefig('turn_pos_err.svg')
 
@@ -2019,10 +1895,8 @@ plot_mean_std(ax, odds_turn_fast_mean_df, odds_turn_fast_mean_df[ulog_vel_error_
 ax.axvline(x=[0], color='0.5', ls='--', lw=2)
 ax.axvline(x=[4], color='0', ls='--', lw=2)
 ax.set_xlim(0, 15)
-# ax.set_ylim(0, 0.25)
 ax.set_ylabel('Vel. Errors [m]')
 ax.set_xlabel('Time [s]')
-# ax.set_xticklabels([])
 ax.legend()
 fig.savefig('turn_vel_err.svg')
 
@@ -2034,10 +1908,8 @@ plot_mean_std(ax, a1_fast_mean_df[:4], a1_fast_mean_df[:4][mocap_target_y], a1_f
 ax.axvline(x=[0], color='0', lw=2)
 ax.axvline(x=[4], color='0', ls='--', lw=2)
 ax.set_xlim(-5, 4.3)
-# ax.set_ylim(0, 0.25)
 ax.set_ylabel('Pos. [m]')
 ax.set_xlabel('Time [s]')
-# ax.set_xticklabels([])
 ax.legend()
 fig.savefig('a1_pos.svg')
 
@@ -2047,10 +1919,8 @@ plot_mean_std(ax, a1_fast_mean_df[:4], a1_fast_mean_df[:4][mocap_target_vy], a1_
 ax.axvline(x=[0], color='0', lw=2)
 ax.axvline(x=[4], color='0', ls='--', lw=2)
 ax.set_xlim(-5, 4.3)
-# ax.set_ylim(0, 0.25)
 ax.set_ylabel('Vel. [m/s]')
 ax.set_xlabel('Time [s]')
-# ax.set_xticklabels([])
 ax.legend()
 fig.savefig('a1_vel.svg')
 
@@ -2060,10 +1930,8 @@ plot_mean_std(ax, odds_turn_mean_df[:4], odds_turn_mean_df[:4][mocap_target_y], 
 ax.axvline(x=[0], color='0', lw=2)
 ax.axvline(x=[4], color='0', ls='--', lw=2)
 ax.set_xlim(-5, 4.3)
-# ax.set_ylim(0, 0.25)
 ax.set_ylabel('Pos. [m]')
 ax.set_xlabel('Time [s]')
-# ax.set_xticklabels([])
 ax.legend()
 fig.savefig('turn_pos.svg')
 
@@ -2074,34 +1942,11 @@ plot_mean_std(ax, odds_turn_mean_df[:4], odds_turn_mean_df[:4][mocap_target_vy],
 ax.axvline(x=[0], color='0', lw=2)
 ax.axvline(x=[4], color='0', ls='--', lw=2)
 ax.set_xlim(-5, 4.3)
-# ax.set_ylim(0, 0.25)
 ax.set_ylabel('Vel. [m/s]')
 ax.set_xlabel('Time [s]')
-# ax.set_xticklabels([])
 ax.legend()
 fig.savefig('turn_vel.svg')
 
-
-# +
-# print(a1_fast_mean_df[mocap_target_vy][0:4].mean())
-# print(odds_turn_mean_df[ulog_error_vx][4])
-# print(a1_slow_mean_df[mocap_target_vy][4])
-# fig, ax = plt.subplots(1,1)
-# ax.plot(odds_turn_fast_mean_df[ulog_vy])
-# ax.plot(odds_turn_fast_mean_df[mocap_target_vy])
-# # ax.plot(odds_turn_fast_mean_df[ulog_vy] - odds_turn_fast_mean_df[mocap_target_vx])
-# # odds_turn_fast_mean_df.plot(y=[ulog_vy])
-
-for df in odds_turn_dfs:
-    a = df[mocap_target_vx][0:4].values
-    b = df[mocap_target_vy][0:4].values
-
-    print(a)
-    print(b)
-    print(np.mean(np.linalg.norm((a,b), axis=0)))
-    fig, ax = plt.subplots(1,1)
-    ax.plot(np.linalg.norm((a,b), axis=0))
-# print(np.linalg.norm(odds_turn_fast_mean_df[mocap_target_vx][0:4].values, odds_turn_fast_mean_df[mocap_target_vy][0:4].values))
 
 # +
 # Success Bar Plot
@@ -2136,211 +1981,6 @@ fig.savefig('moving_success.svg')
 # # Appendix
 
 # +
-# Longitudinal: + is in the forward direction (X)
-# Lateral: if you are the drone facing the target, then left is positive (Y)
-# Vertical: + points up (Z)
-
-# For vision tests this means that:
-# mavros_in_x is longitudinal, ulog_y is longitudinal
-# mavros_in_y is lateral, ulog_x is lateral
-# mavros_in_z is vertical, -ulog_z is vertical
-
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, medkit_mean_df, medkit_mean_df[ulog_error_y], medkit_std_df[ulog_error_y], label="Longitudinal")
-plot_mean_std(ax, medkit_mean_df, medkit_mean_df[ulog_error_x], medkit_std_df[ulog_error_x], label="Lateral")
-plot_mean_std(ax, medkit_mean_df, -medkit_mean_df[ulog_error_z], medkit_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Medkit 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/medkit_05_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, pepsi_mean_df, pepsi_mean_df[ulog_error_y], pepsi_std_df[ulog_error_y], label="Longitudinal")
-plot_mean_std(ax, pepsi_mean_df, pepsi_mean_df[ulog_error_x], pepsi_std_df[ulog_error_x], label="Lateral")
-plot_mean_std(ax, pepsi_mean_df, -pepsi_mean_df[ulog_error_z], pepsi_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Two-liter 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/pepsi_05_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, cardboard_box_mean_df, cardboard_box_mean_df[ulog_error_y], cardboard_box_std_df[ulog_error_y], label="Longitudinal")
-plot_mean_std(ax, cardboard_box_mean_df, cardboard_box_mean_df[ulog_error_x], cardboard_box_std_df[ulog_error_x], label="Lateral")
-plot_mean_std(ax, cardboard_box_mean_df, -cardboard_box_mean_df[ulog_error_z], cardboard_box_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Cardboard Box 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/cardboard_box_05_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, pepsi_mid_mean_df, pepsi_mid_mean_df[ulog_error_y], pepsi_mid_std_df[ulog_error_y], label="Longitudinal")
-plot_mean_std(ax, pepsi_mid_mean_df, pepsi_mid_mean_df[ulog_error_x], pepsi_mid_std_df[ulog_error_x], label="Lateral")
-plot_mean_std(ax, pepsi_mid_mean_df, -pepsi_mid_mean_df[ulog_error_z], pepsi_mid_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Two-liter 1.25 m/s")
-ax.legend()
-fig.savefig('appdx/pepsi_125_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, pepsi_fast_mean_df, pepsi_fast_mean_df[ulog_error_y], pepsi_fast_std_df[ulog_error_y], label="Longitudinal")
-plot_mean_std(ax, pepsi_fast_mean_df, pepsi_fast_mean_df[ulog_error_x], pepsi_fast_std_df[ulog_error_x], label="Lateral")
-plot_mean_std(ax, pepsi_fast_mean_df, -pepsi_fast_mean_df[ulog_error_z], pepsi_fast_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Two-liter 2 m/s")
-ax.legend()
-fig.savefig('appdx/pepsi_2_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, pepsi_fastest_mean_df, pepsi_fastest_mean_df[mavros_error_x], pepsi_fastest_std_df[mavros_error_x], label="Longitudinal")
-plot_mean_std(ax, pepsi_fastest_mean_df, pepsi_fastest_mean_df[mavros_error_y], pepsi_fastest_std_df[mavros_error_y], label="Lateral")
-plot_mean_std(ax, pepsi_fastest_mean_df, pepsi_fastest_mean_df[mavros_error_z], pepsi_fastest_std_df[mavros_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Two-liter 3 m/s")
-ax.legend()
-fig.savefig('appdx/pepsi_3_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, outdoors_mean_df, outdoors_mean_df[mavros_error_x], outdoors_std_df[mavros_error_x], label="Longitudinal")
-plot_mean_std(ax, outdoors_mean_df, outdoors_mean_df[mavros_error_y], outdoors_std_df[mavros_error_y], label="Lateral")
-plot_mean_std(ax, outdoors_mean_df, outdoors_mean_df[mavros_error_z], outdoors_std_df[mavros_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Outdoors 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/outdoors_05_pos_comps.svg')
-
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, medkit_mean_df, medkit_mean_df[ulog_error_vy], medkit_std_df[ulog_error_vy], label="Longitudinal")
-plot_mean_std(ax, medkit_mean_df, medkit_mean_df[ulog_error_vx], medkit_std_df[ulog_error_vx], label="Lateral")
-plot_mean_std(ax, medkit_mean_df, -medkit_mean_df[ulog_error_vz], medkit_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Medkit 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/medkit_05_vel_comps.svg')
-# fig.savefig('object_pos_err.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, pepsi_mean_df, pepsi_mean_df[ulog_error_vy], pepsi_std_df[ulog_error_vy], label="Longitudinal")
-plot_mean_std(ax, pepsi_mean_df, pepsi_mean_df[ulog_error_vx], pepsi_std_df[ulog_error_vx], label="Lateral")
-plot_mean_std(ax, pepsi_mean_df, -pepsi_mean_df[ulog_error_vz], pepsi_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Two-liter 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/pepsi_05_vel_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, cardboard_box_mean_df, cardboard_box_mean_df[ulog_error_vy], cardboard_box_std_df[ulog_error_vy], label="Longitudinal")
-plot_mean_std(ax, cardboard_box_mean_df, cardboard_box_mean_df[ulog_error_vx], cardboard_box_std_df[ulog_error_vx], label="Lateral")
-plot_mean_std(ax, cardboard_box_mean_df, -cardboard_box_mean_df[ulog_error_vz], cardboard_box_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Cardboard Box 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/cardboard_box_05_vel_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, pepsi_mid_mean_df, pepsi_mid_mean_df[ulog_error_vy], pepsi_mid_std_df[ulog_error_vy], label="Longitudinal")
-plot_mean_std(ax, pepsi_mid_mean_df, pepsi_mid_mean_df[ulog_error_vx], pepsi_mid_std_df[ulog_error_vx], label="Lateral")
-plot_mean_std(ax, pepsi_mid_mean_df, -pepsi_mid_mean_df[ulog_error_vz], pepsi_mid_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Two-liter 1.25 m/s")
-ax.legend()
-fig.savefig('appdx/pepsi_125_vel_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, pepsi_fast_mean_df, pepsi_fast_mean_df[ulog_error_vy], pepsi_fast_std_df[ulog_error_vy], label="Longitudinal")
-plot_mean_std(ax, pepsi_fast_mean_df, pepsi_fast_mean_df[ulog_error_vx], pepsi_fast_std_df[ulog_error_vx], label="Lateral")
-plot_mean_std(ax, pepsi_fast_mean_df, -pepsi_fast_mean_df[ulog_error_vz], pepsi_fast_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Two-liter 2 m/s")
-ax.legend()
-fig.savefig('appdx/pepsi_2_vel_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, pepsi_fastest_mean_df, pepsi_fastest_mean_df[mavros_error_vx], pepsi_fastest_std_df[mavros_error_vx], label="Longitudinal")
-plot_mean_std(ax, pepsi_fastest_mean_df, pepsi_fastest_mean_df[mavros_error_vy], pepsi_fastest_std_df[mavros_error_vy], label="Lateral")
-plot_mean_std(ax, pepsi_fastest_mean_df, pepsi_fastest_mean_df[mavros_error_vz], pepsi_fastest_std_df[mavros_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Two-liter 3 m/s")
-ax.legend()
-fig.savefig('appdx/pepsi_3_vel_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, outdoors_mean_df, outdoors_mean_df[mavros_error_vx], outdoors_std_df[mavros_error_vx], label="Longitudinal")
-plot_mean_std(ax, outdoors_mean_df, outdoors_mean_df[mavros_error_vy], outdoors_std_df[mavros_error_vy], label="Lateral")
-plot_mean_std(ax, outdoors_mean_df, outdoors_mean_df[mavros_error_vz], outdoors_std_df[mavros_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Vision Outdoors 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/outdoors_05_vel_comps.svg')
-
-# +
-# Longitudinal: + is in the forward direction (X)
-# Lateral: if you are the drone facing the target, then left is positive (Y)
-# Vertical: + points up (Z)
-
-# For vision tests this means that:
-# mavros_in_x is longitudinal, ulog_y is longitudinal
-# mavros_in_y is lateral, ulog_x is lateral
-# mavros_in_z is vertical, -ulog_z is vertical
-
-
 fig, ax = plt.subplots(1,1, figsize=(12,6))
 plot_mean_std(ax, medkit_mean_df, medkit_mean_df[ulog_wrt_tar_error_x], medkit_std_df[ulog_wrt_tar_error_x], label="Longitudinal")
 plot_mean_std(ax, medkit_mean_df, medkit_mean_df[ulog_wrt_tar_error_y], medkit_std_df[ulog_wrt_tar_error_y], label="Lateral")
@@ -2445,7 +2085,6 @@ ax.set_xlabel('Time [s]')
 ax.set_title("Vision Medkit 0.5 m/s")
 ax.legend()
 fig.savefig('appdx/medkit_05_vel_comps.svg')
-# fig.savefig('object_pos_err.svg')
 
 fig, ax = plt.subplots(1,1, figsize=(12,6))
 plot_mean_std(ax, pepsi_mean_df, pepsi_mean_df[ulog_wrt_tar_error_vx], pepsi_std_df[ulog_wrt_tar_error_vx], label="Longitudinal")
@@ -2526,164 +2165,6 @@ ax.legend()
 fig.savefig('appdx/outdoors_05_vel_comps.svg')
 
 # +
-# For A1:
-# mocap_drone_y and ulog_x are longitudinal
-# -mocap_drone_x and -ulog_y are lateral
-# mocap_drone_z and -ulog_z are vertical
-
-# For turntable:
-# mocap_drone_x and ulog_y are longitudinal
-# mocap_drone_y and ulog_x are lateral
-# mocap_drone_z and -ulog_z are vertical
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, a1_slow_mean_df, a1_slow_mean_df[ulog_error_x], a1_slow_std_df[ulog_error_x], label="Longitudinal")
-plot_mean_std(ax, a1_slow_mean_df, -a1_slow_mean_df[ulog_error_y], -a1_slow_std_df[ulog_error_y], label="Lateral")
-plot_mean_std(ax, a1_slow_mean_df, -a1_slow_mean_df[ulog_error_z], a1_slow_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Quadruped Slow")
-ax.legend()
-fig.savefig('appdx/a1_slow_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, a1_fast_mean_df, a1_fast_mean_df[ulog_error_x], a1_fast_std_df[ulog_error_x], label="Longitudinal")
-plot_mean_std(ax, a1_fast_mean_df, -a1_fast_mean_df[ulog_error_y], -a1_fast_std_df[ulog_error_y], label="Lateral")
-plot_mean_std(ax, a1_fast_mean_df, -a1_fast_mean_df[ulog_error_z], a1_fast_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Quadruped Fast")
-ax.legend()
-fig.savefig('appdx/a1_fast_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, odds_turn_mean_df, odds_turn_mean_df[ulog_error_y], odds_turn_std_df[ulog_error_y], label="Longitudinal")
-plot_mean_std(ax, odds_turn_mean_df, odds_turn_mean_df[ulog_error_x], odds_turn_std_df[ulog_error_x], label="Lateral")
-plot_mean_std(ax, odds_turn_mean_df, -odds_turn_mean_df[ulog_error_z], odds_turn_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Turntable 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/turn_05_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, odds_turn_mid_mean_df, odds_turn_mid_mean_df[ulog_error_y], odds_turn_mid_std_df[ulog_error_y], label="Longitudinal")
-plot_mean_std(ax, odds_turn_mid_mean_df, odds_turn_mid_mean_df[ulog_error_x], odds_turn_mid_std_df[ulog_error_x], label="Lateral")
-plot_mean_std(ax, odds_turn_mid_mean_df, -odds_turn_mid_mean_df[ulog_error_z], odds_turn_mid_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Turntable 1 m/s")
-ax.legend()
-fig.savefig('appdx/turn_1_pos_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, odds_turn_fast_mean_df, odds_turn_fast_mean_df[ulog_error_y], odds_turn_fast_std_df[ulog_error_y], label="Longitudinal")
-plot_mean_std(ax, odds_turn_fast_mean_df, odds_turn_fast_mean_df[ulog_error_x], odds_turn_fast_std_df[ulog_error_x], label="Lateral")
-plot_mean_std(ax, odds_turn_fast_mean_df, -odds_turn_fast_mean_df[ulog_error_z], odds_turn_fast_std_df[ulog_error_z], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Pos. Errors [m]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Turntable 1.5 m/s")
-ax.legend()
-fig.savefig('appdx/turn_15_pos_comps.svg')
-
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, a1_slow_mean_df, a1_slow_mean_df[ulog_error_vx], a1_slow_std_df[ulog_error_vx], label="Longitudinal")
-plot_mean_std(ax, a1_slow_mean_df, -a1_slow_mean_df[ulog_error_vy], -a1_slow_std_df[ulog_error_vy], label="Lateral")
-plot_mean_std(ax, a1_slow_mean_df, -a1_slow_mean_df[ulog_error_vz], a1_slow_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Quadruped Slow")
-ax.legend()
-fig.savefig('appdx/a1_slow_vel_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, a1_fast_mean_df, a1_fast_mean_df[ulog_error_vx], a1_fast_std_df[ulog_error_vx], label="Longitudinal")
-plot_mean_std(ax, a1_fast_mean_df, -a1_fast_mean_df[ulog_error_vy], -a1_fast_std_df[ulog_error_vy], label="Lateral")
-plot_mean_std(ax, a1_fast_mean_df, -a1_fast_mean_df[ulog_error_vz], a1_fast_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Quadruped Fast")
-ax.legend()
-fig.savefig('appdx/a1_fast_vel_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, odds_turn_mean_df, odds_turn_mean_df[ulog_error_vy], odds_turn_std_df[ulog_error_vy], label="Longitudinal")
-plot_mean_std(ax, odds_turn_mean_df, odds_turn_mean_df[ulog_error_vx], odds_turn_std_df[ulog_error_vx], label="Lateral")
-plot_mean_std(ax, odds_turn_mean_df, -odds_turn_mean_df[ulog_error_vz], odds_turn_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Turntable 0.5 m/s")
-ax.legend()
-fig.savefig('appdx/turn_05_vel_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, odds_turn_mid_mean_df, odds_turn_mid_mean_df[ulog_error_vy], odds_turn_mid_std_df[ulog_error_vy], label="Longitudinal")
-plot_mean_std(ax, odds_turn_mid_mean_df, odds_turn_mid_mean_df[ulog_error_vx], odds_turn_mid_std_df[ulog_error_vx], label="Lateral")
-plot_mean_std(ax, odds_turn_mid_mean_df, -odds_turn_mid_mean_df[ulog_error_vz], odds_turn_mid_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Turntable 1 m/s")
-ax.legend()
-fig.savefig('appdx/turn_1_vel_comps.svg')
-
-fig, ax = plt.subplots(1,1, figsize=(12,6))
-plot_mean_std(ax, odds_turn_fast_mean_df, odds_turn_fast_mean_df[ulog_error_vy], odds_turn_fast_std_df[ulog_error_vy], label="Longitudinal")
-plot_mean_std(ax, odds_turn_fast_mean_df, odds_turn_fast_mean_df[ulog_error_vx], odds_turn_fast_std_df[ulog_error_vx], label="Lateral")
-plot_mean_std(ax, odds_turn_fast_mean_df, -odds_turn_fast_mean_df[ulog_error_vz], odds_turn_fast_std_df[ulog_error_vz], label="Vertical")
-ax.axvline(x=[0], color='0.5', ls='--', lw=2)
-ax.axvline(x=[4], color='0', ls='--', lw=2)
-ax.set_xlim(0, 15)
-ax.set_ylabel('Vel. Errors [m/s]')
-ax.set_xlabel('Time [s]')
-ax.set_title("Mocap Turntable 1.5 m/s")
-ax.legend()
-fig.savefig('appdx/turn_15_vel_comps.svg')
-
-
-
-# fig, ax = plt.subplots(1,1, figsize=(12,6))
-# ax.plot(odds_turn_mean_df[ulog_x])
-# ax.plot(odds_turn_mean_df[mocap_drone_y])
-
-# +
-# For A1:
-# mocap_drone_y and ulog_x are longitudinal
-# -mocap_drone_x and -ulog_y are lateral
-# mocap_drone_z and -ulog_z are vertical
-
-# For turntable:
-# mocap_drone_x and ulog_y are longitudinal
-# mocap_drone_y and ulog_x are lateral
-# mocap_drone_z and -ulog_z are vertical
-
 fig, ax = plt.subplots(1,1, figsize=(12,6))
 plot_mean_std(ax, a1_slow_mean_df, a1_slow_mean_df[ulog_wrt_tar_error_x], a1_slow_std_df[ulog_wrt_tar_error_x], label="Longitudinal")
 plot_mean_std(ax, a1_slow_mean_df, a1_slow_mean_df[ulog_wrt_tar_error_y], a1_slow_std_df[ulog_wrt_tar_error_y], label="Lateral")
@@ -2816,1225 +2297,3 @@ ax.set_xlabel('Time [s]')
 ax.set_title("Mocap Turntable 1.5 m/s")
 ax.legend()
 fig.savefig('appdx/turn_15_vel_comps.svg')
-
-
-
-# fig, ax = plt.subplots(1,1, figsize=(12,6))
-# ax.plot(odds_turn_mean_df[ulog_x])
-# ax.plot(odds_turn_mean_df[mocap_drone_y])
-
-# +
-ulog_location = "../mocap_turntable_05ms"
-ulog_result_location = "../log_output"
-bag_location = "../mocap_turntable_05ms"
-bag_result_location = "../mocap_turntable_05ms"
-
-dfs = create_dfs(ulog_location, ulog_result_location, 
-                 bag_location, bag_result_location, 
-                 alignment_topic=mocap_drone_x)
-validate_alignment(dfs, mocap_drone_x)
-
-ulog_location = "../mocap_turntable_1ms"
-ulog_result_location = "../log_output"
-bag_location = "../mocap_turntable_1ms"
-bag_result_location = "../mocap_turntable_1ms"
-
-dfs_mid = create_dfs(ulog_location, ulog_result_location, 
-                 bag_location, bag_result_location, 
-                 alignment_topic=mocap_drone_x)
-validate_alignment(dfs_mid, mocap_drone_x)
-
-ulog_location = "../mocap_turntable_15ms"
-ulog_result_location = "../log_output"
-bag_location = "../mocap_turntable_15ms"
-bag_result_location = "../mocap_turntable_15ms"
-
-dfs_fast = create_dfs(ulog_location, ulog_result_location, 
-                 bag_location, bag_result_location, 
-                 alignment_topic=mocap_drone_x)
-validate_alignment(dfs_fast, mocap_drone_x)
-
-# +
-add_velocities(dfs)
-add_velocities(dfs_mid)
-add_velocities(dfs_fast)
-
-odds_dfs = [dfs[i] for i in range(1, len(dfs), 2)]
-odds_dfs_mid = [dfs_mid[i] for i in range(1, len(dfs_mid), 2)]
-odds_dfs_fast = [dfs_fast[i] for i in range(1, len(dfs_fast), 2)]
-
-mean_df, std_df = add_errors(odds_dfs, vision=False)
-mean_df_mid, std_df_mid = add_errors(odds_dfs_mid, vision=False)
-mean_df_fast, std_df_fast = add_errors(odds_dfs_fast, vision=False)
-
-# mean_df, std_df = add_errors(dfs, vision=False)
-# mean_df_mid, std_df_mid = add_errors(dfs, vision=False)
-# mean_df_fast, std_df_fast = add_errors(dfs, vision=False)
-
-# +
-sns.set(font_scale=1.2)
-sns.set_style("ticks")
-fig, ax = plt.subplots(1,2, figsize=(12,3))
-# plot_mean_std(ax[0], medkit_mean_df, medkit_mean_df[ulog_pos_error_norm], medkit_std_df[ulog_pos_error_norm], label="Medkit")
-# plot_mean_std(ax[0], cardboard_box_mean_df, cardboard_box_mean_df[ulog_pos_error_norm], cardboard_box_std_df[ulog_pos_error_norm], label="Cardboard Box")
-# plot_mean_std(ax[0], pepsi_mean_df, pepsi_mean_df[ulog_pos_error_norm], pepsi_std_df[ulog_pos_error_norm], label="2 Liter Bottle")
-plot_mean_std(ax[0], mean_df_a1_slow, mean_df_a1_slow[ulog_pos_error_norm], std_df_a1_slow[ulog_pos_error_norm], label="Slow")
-plot_mean_std(ax[0], mean_df_a1_fast, mean_df_a1_fast[ulog_pos_error_norm], std_df_a1_fast[ulog_pos_error_norm], label="Fast")
-# plot_mean_std(ax[0], cardboard_box_mean_df, np.abs(cardboard_box_mean_df[ulog_error_z]), cardboard_box_std_df[ulog_error_z], label="Cardboard Box")
-# plot_mean_std(ax[0], pepsi_mean_df, np.abs(pepsi_mean_df[ulog_error_z]), pepsi_std_df[ulog_error_z], label="2 Liter Bottle")
-
-ax[0].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[0].axvline(x=[4], color='0', ls='--', lw=2)
-ax[0].set_xlim(0, 14)
-ax[0].set_ylim(0, 0.4)
-ax[0].set_ylabel('Pos. Errors [m]')
-ax[0].set_xlabel('Time [s]')
-# ax[0].set_xticklabels([])
-ax[0].legend()
-
-plot_mean_std(ax[1], mean_df, mean_df[ulog_pos_error_norm], std_df[ulog_pos_error_norm], label="0.5 m/s")
-plot_mean_std(ax[1], mean_df_mid, mean_df_mid[ulog_pos_error_norm], std_df_mid[ulog_pos_error_norm], label="1 m/s")
-plot_mean_std(ax[1], mean_df_fast, mean_df_fast[ulog_pos_error_norm], std_df_fast[ulog_pos_error_norm], label="1.5 m/s")
-
-ax[1].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[1].axvline(x=[4], color='0', ls='--', lw=2)
-ax[1].set_xlim(0, 14)
-ax[1].set_ylim(0, 0.3)
-# ax[1].set_ylabel('Pos. Errors [m]')
-ax[1].set_xlabel('Time [s]')
-# ax[1].set_xticklabels([])
-ax[1].legend()
-
-
-sns.set(font_scale=1.2)
-sns.set_style("ticks")
-fig, ax = plt.subplots(2,2, figsize=(6,4))
-
-# plot_mean_std(ax[0], mean_df, (mean_df[mocap_drone_x]), std_df[mocap_drone_x], label="X")
-# plot_mean_std(ax[0], mean_df_a1_slow, (mean_df[mocap_target_y]), std_df[mocap_target_y], label="Y")
-# plot_mean_std(ax[0], mean_df_a1_slow, (mean_df[mocap_target_z]), std_df[mocap_target_z], label="Z")
-
-
-
-sliced_mean_df_a1_slow = mean_df_a1_slow[:4]
-sliced_std_df_a1_slow = std_df_a1_slow[:4]
-
-sliced_mean_df_a1_fast = mean_df_a1_fast[:4]
-sliced_std_df_a1_fast = std_df_a1_fast[:4]
-
-# plot_mean_std(ax[0], sliced_mean_df_a1_slow, sliced_mean_df_a1_slow[mocap_target_x], sliced_std_df_a1_slow[mocap_target_x], label="Slow X")
-plot_mean_std(ax[0][0], sliced_mean_df_a1_slow, sliced_mean_df_a1_slow[mocap_target_y], sliced_std_df_a1_slow[mocap_target_y], label="Slow")
-
-
-# plot_mean_std(ax[0], sliced_mean_df_a1_fast, sliced_mean_df_a1_fast[mocap_target_x], sliced_std_df_a1_fast[mocap_target_x], label="Fast X")
-plot_mean_std(ax[0][0], sliced_mean_df_a1_fast, sliced_mean_df_a1_fast[mocap_target_y], sliced_std_df_a1_fast[mocap_target_y], label="Fast")
-# plot_mean_std(ax[0], cardboard_box_mean_df, np.abs(cardboard_box_mean_df[ulog_error_z]), cardboard_box_std_df[ulog_error_z], label="Cardboard Box")
-# plot_mean_std(ax[0], pepsi_mean_df, np.abs(pepsi_mean_df[ulog_error_z]), pepsi_std_df[ulog_error_z], label="2 Liter Bottle")
-
-ax[0][0].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[0][0].axvline(x=[4], color='0', ls='--', lw=2)
-ax[0][0].set_xlim(-5, 4.5)
-# ax[0].set_ylim(0, 0.25)
-ax[0][0].set_ylabel('Pos. [m]')
-# ax[0].set_xlabel('Time [s]')
-# ax[0][0].set_xticklabels([])
-ax[0][0].legend()
-
-
-# plot_mean_std(ax[1], sliced_mean_df_a1_slow, sliced_mean_df_a1_slow[mocap_target_vx], sliced_std_df_a1_slow[mocap_target_vx], label="Slow X")
-plot_mean_std(ax[1][0], sliced_mean_df_a1_slow, sliced_mean_df_a1_slow[mocap_target_vy], sliced_std_df_a1_slow[mocap_target_vy], label="Slow")
-
-
-# plot_mean_std(ax[1], sliced_mean_df_a1_fast, sliced_mean_df_a1_fast[mocap_target_vx], sliced_std_df_a1_fast[mocap_target_vx], label="Fast X")
-plot_mean_std(ax[1][0], sliced_mean_df_a1_fast, sliced_mean_df_a1_fast[mocap_target_vy], sliced_std_df_a1_fast[mocap_target_vy], label="Fast")
-
-
-ax[1][0].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[1][0].axvline(x=[4], color='0', ls='--', lw=2)
-ax[1][0].set_xlim(-5, 4.5)
-# ax[0].set_ylim(0, 0.25)
-ax[1][0].set_ylabel('Vel. [m/s]')
-ax[1][0].set_xlabel('Time [s]')
-# ax[1].set_xticklabels([])
-# ax[1][0].legend()
-
-sliced_mean_df_slow = mean_df[:4]
-sliced_std_df_slow = std_df[:4]
-
-sliced_mean_df_a1_mid = mean_df_mid[:4]
-sliced_std_df_a1_mid = std_df_mid[:4]
-
-sliced_mean_df_a1_fast = mean_df_fast[:4]
-sliced_std_df_a1_fast = std_df_fast[:4]
-
-plot_mean_std(ax[0][1], sliced_mean_df_slow, sliced_mean_df_slow[mocap_target_x], sliced_std_df_slow[mocap_target_x], label="X")
-plot_mean_std(ax[0][1], sliced_mean_df_slow, sliced_mean_df_slow[mocap_target_y], sliced_std_df_slow[mocap_target_y], label="Y")
-
-
-# plot_mean_std(ax[0], sliced_mean_df_a1_fast, sliced_mean_df_a1_fast[mocap_target_x], sliced_std_df_a1_fast[mocap_target_x], label="Fast X")
-# plot_mean_std(ax[0], sliced_mean_df_a1_fast, sliced_mean_df_a1_fast[mocap_target_y], sliced_std_df_a1_fast[mocap_target_y], label="Fast Y")
-# plot_mean_std(ax[0], cardboard_box_mean_df, np.abs(cardboard_box_mean_df[ulog_error_z]), cardboard_box_std_df[ulog_error_z], label="Cardboard Box")
-# plot_mean_std(ax[0], pepsi_mean_df, np.abs(pepsi_mean_df[ulog_error_z]), pepsi_std_df[ulog_error_z], label="2 Liter Bottle")
-
-ax[0][1].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[0][1].axvline(x=[4], color='0', ls='--', lw=2)
-ax[0][1].set_xlim(-5, 4.5)
-# ax[0].set_ylim(0, 0.25)
-# ax[0].set_ylabel('Pos. [m]')
-# ax[0].set_xlabel('Time [s]')
-ax[0][1].set_xticklabels([])
-ax[0][1].legend()
-
-
-plot_mean_std(ax[1][1], sliced_mean_df_slow, sliced_mean_df_slow[mocap_target_vx], sliced_std_df_slow[mocap_target_vx], label="X")
-plot_mean_std(ax[1][1], sliced_mean_df_slow, sliced_mean_df_slow[mocap_target_vy], sliced_std_df_slow[mocap_target_vy], label="Y")
-
-
-# plot_mean_std(ax[1], sliced_mean_df_a1_fast, sliced_mean_df_a1_fast[mocap_target_vx], sliced_std_df_a1_fast[mocap_target_vx], label="Fast X")
-# plot_mean_std(ax[1], sliced_mean_df_a1_fast, sliced_mean_df_a1_fast[mocap_target_vy], sliced_std_df_a1_fast[mocap_target_vy], label="Fast")
-
-
-ax[1][1].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[1][1].axvline(x=[4], color='0', ls='--', lw=2)
-ax[1][1].set_xlim(-5, 4.5)
-# ax[0].set_ylim(0, 0.25)
-# ax[1].set_ylabel('Vel. [m/s]')
-ax[1][1].set_xlabel('Time [s]')
-# ax[1].set_xticklabels([])
-# ax[1][1].legend()
-plt.tight_layout()
-
-fig, ax = plt.subplots(1,1, figsize=(5,4))
-N = 5
-mocap = (10, 6, 10, 9, 7)
-ind = np.arange(N)
-width = 0.6    
-
-# Plotting
-# ax.bar(ind, vision , width, label='Vision')
-ax.bar(ind, mocap, width)
-ax.set_ylabel('Success')
-# plt.title('Here goes title of the plot')
-ax.set_xticks(ind, ('Slow', 'Fast', '0.5m/s', '1.0m/s', '1.5m/s'))
-# plt.xticks(rotation = 45)
-
-ax.legend(loc='best')
-ax.axhline(y=10, color='0', ls='--', lw=2)
-
-# +
-
-
-sns.set_style('ticks')
-fig = plt.figure(figsize=(20,12))
-ax = fig.add_subplot(111, projection='3d')
-# ax.set_box_aspect([1,1,1])
-ax.view_init(elev=90, azim=-90)
-
-odds_dfs = [dfs[i] for i in range(1, len(dfs), 2)]
-odds_dfs_mid = [dfs_mid[i] for i in range(1, len(dfs_mid), 2)]
-odds_dfs_fast = [dfs_fast[i] for i in range(1, len(dfs_fast), 2)]
-
-slow_turntable_mean_df, slow_turntable_std_df = add_errors(odds_dfs, vision=False)
-mid_turntable_mean_df, mid_turntable_std_df = add_errors(odds_dfs_mid, vision=False)
-fast_turntable_mean_df, fast_turntable_std_df = add_errors(odds_dfs_fast, vision=False)
-
-all_dfs = odds_dfs + odds_dfs_fast
-
-
-xs = []
-ys = []
-zs = []
-for df in odds_dfs:
-    df_sliced = df[-5:14]
-    drone_traj = np.array([df_sliced[mocap_drone_x], df_sliced[mocap_drone_y], df_sliced[mocap_drone_z]]).T
-    df_sliced_2 = df[-5:4]
-    target_traj = np.array([df_sliced_2[mocap_target_x], df_sliced_2[mocap_target_y], df_sliced_2[mocap_target_z]]).T
-    #     print(drone_traj)
-    ax.plot(drone_traj[:,0], drone_traj[:,1], drone_traj[:,2], color='g')
-    ax.plot(target_traj[:,0], target_traj[:,1], target_traj[:,2], color='r')
-    xs += drone_traj[:,0].tolist()
-    ys += drone_traj[:,1].tolist()
-    zs += drone_traj[:,2].tolist()
-    
-    
-for df in odds_dfs_mid:
-    df_sliced = df[-5:14]
-    drone_traj = np.array([df_sliced[mocap_drone_x], df_sliced[mocap_drone_y], df_sliced[mocap_drone_z]]).T
-    df_sliced_2 = df[-5:4]
-    target_traj = np.array([df_sliced_2[mocap_target_x], df_sliced_2[mocap_target_y], df_sliced_2[mocap_target_z]]).T
-    #     print(drone_traj)
-    ax.plot(drone_traj[:,0], drone_traj[:,1], drone_traj[:,2], color='r')
-    ax.plot(target_traj[:,0], target_traj[:,1], target_traj[:,2], color='r')
-
-    xs += drone_traj[:,0].tolist()
-    ys += drone_traj[:,1].tolist()
-    zs += drone_traj[:,2].tolist()
-    
-    
-for df in odds_dfs_fast:
-    df_sliced = df[-5:14]
-    drone_traj = np.array([df_sliced[mocap_drone_x], df_sliced[mocap_drone_y], df_sliced[mocap_drone_z]]).T
-    df_sliced_2 = df[-5:4]
-    target_traj = np.array([df_sliced_2[mocap_target_x], df_sliced_2[mocap_target_y], df_sliced_2[mocap_target_z]]).T
-    #     print(drone_traj)
-    ax.plot(drone_traj[:,0], drone_traj[:,1], drone_traj[:,2], color='b')
-    ax.plot(target_traj[:,0], target_traj[:,1], target_traj[:,2], color='r')
-    xs += drone_traj[:,0].tolist()
-    ys += drone_traj[:,1].tolist()
-    zs += drone_traj[:,2].tolist()
-    
-    
-ax.set_box_aspect((np.ptp(xs), np.ptp(ys), np.ptp(zs)))
-ax.set_zlim([0, 1.4])
-
-
-# +
-##############################################################3
-fig, ax = plt.subplots(5,2, figsize=(12,18))
-
-medkit_mean_df_sliced = medkit_mean_df[0:15]
-medkit_std_df_sliced = medkit_std_df[0:15]
-plot_mean_std(ax[0][0], medkit_mean_df_sliced, medkit_mean_df_sliced[ulog_error_x], medkit_std_df_sliced[ulog_error_x], label="X")
-plot_mean_std(ax[0][0], medkit_mean_df_sliced, medkit_mean_df_sliced[ulog_error_y], medkit_std_df_sliced[ulog_error_y], label="Y")
-plot_mean_std(ax[0][0], medkit_mean_df_sliced, medkit_mean_df_sliced[ulog_error_z], medkit_std_df_sliced[ulog_error_z], label="Z")
-
-ax[0][0].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[0][0].axvline(x=[4], color='0', ls='--', lw=2)
-ax[0][0].set_xlim(0, 15)
-# ax[0][0].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-# ax[0][0].set_xlabel('Time [s]')
-ax[0][0].set_title("Medkit 0.5 m/s")
-# ax.set_xticklabels([])
-ax[0][0].legend()
-
-cardboard_box_mean_df_sliced = cardboard_box_mean_df[0:15]
-cardboard_box_std_df_sliced = cardboard_box_std_df[0:15]
-plot_mean_std(ax[1][0], cardboard_box_mean_df_sliced, cardboard_box_mean_df_sliced[ulog_error_x], cardboard_box_std_df_sliced[ulog_error_x], label="X")
-plot_mean_std(ax[1][0], cardboard_box_mean_df_sliced, cardboard_box_mean_df_sliced[ulog_error_y], cardboard_box_std_df_sliced[ulog_error_y], label="Y")
-plot_mean_std(ax[1][0], cardboard_box_mean_df_sliced, cardboard_box_mean_df_sliced[ulog_error_z], cardboard_box_std_df_sliced[ulog_error_z], label="Z")
-
-ax[1][0].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[1][0].axvline(x=[4], color='0', ls='--', lw=2)
-ax[1][0].set_xlim(0, 15)
-# ax[0][0].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-# ax[0][0].set_xlabel('Time [s]')
-ax[1][0].set_title("Cardboard Box 0.5 m/s")
-
-pepsi_mean_df_sliced = pepsi_mean_df[0:15]
-pepsi_std_df_sliced = pepsi_std_df[0:15]
-plot_mean_std(ax[2][0], pepsi_mean_df_sliced, pepsi_mean_df_sliced[ulog_error_x], pepsi_std_df_sliced[ulog_error_x], label="X")
-plot_mean_std(ax[2][0], pepsi_mean_df_sliced, pepsi_mean_df_sliced[ulog_error_y], pepsi_std_df_sliced[ulog_error_y], label="Y")
-plot_mean_std(ax[2][0], pepsi_mean_df_sliced, pepsi_mean_df_sliced[ulog_error_z], pepsi_std_df_sliced[ulog_error_z], label="Z")
-
-ax[2][0].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[2][0].axvline(x=[4], color='0', ls='--', lw=2)
-ax[2][0].set_xlim(0, 15)
-# ax[0][0].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-# ax[0][0].set_xlabel('Time [s]')
-ax[2][0].set_title("2 Liter Bottle 0.5 m/s")
-
-pepsi_mid_mean_df_sliced = pepsi_mid_mean_df[0:15]
-pepsi_mid_std_df_sliced = pepsi_mid_std_df[0:15]
-plot_mean_std(ax[3][0], pepsi_mid_mean_df_sliced, pepsi_mid_mean_df_sliced[ulog_error_x], pepsi_mid_std_df_sliced[ulog_error_x], label="X")
-plot_mean_std(ax[3][0], pepsi_mid_mean_df_sliced, pepsi_mid_mean_df_sliced[ulog_error_y], pepsi_mid_std_df_sliced[ulog_error_y], label="Y")
-plot_mean_std(ax[3][0], pepsi_mid_mean_df_sliced, pepsi_mid_mean_df_sliced[ulog_error_z], pepsi_mid_std_df_sliced[ulog_error_z], label="Z")
-
-ax[3][0].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[3][0].axvline(x=[4], color='0', ls='--', lw=2)
-ax[3][0].set_xlim(0, 15)
-# ax[0][0].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-# ax[0][0].set_xlabel('Time [s]')
-ax[3][0].set_title("2 Liter Bottle 1.25 m/s")
-
-pepsi_fast_mean_df_sliced = pepsi_fast_mean_df[0:15]
-pepsi_fast_std_df_sliced = pepsi_fast_std_df[0:15]
-plot_mean_std(ax[4][0], pepsi_fast_mean_df_sliced, pepsi_fast_mean_df_sliced[ulog_error_x], pepsi_fast_std_df_sliced[ulog_error_x], label="X")
-plot_mean_std(ax[4][0], pepsi_fast_mean_df_sliced, pepsi_fast_mean_df_sliced[ulog_error_y], pepsi_fast_std_df_sliced[ulog_error_y], label="Y")
-plot_mean_std(ax[4][0], pepsi_fast_mean_df_sliced, pepsi_fast_mean_df_sliced[ulog_error_z], pepsi_fast_std_df_sliced[ulog_error_z], label="Z")
-
-ax[4][0].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[4][0].axvline(x=[4], color='0', ls='--', lw=2)
-ax[4][0].set_xlim(0, 15)
-# ax[0][0].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-ax[4][0].set_xlabel('Time [s]')
-ax[4][0].set_title("2 Liter Bottle 2 m/s")
-
-
-a1_slow_mean_df_sliced = mean_df_a1_slow[0:15]
-a1_slow_std_df_sliced = std_df_a1_slow[0:15]
-plot_mean_std(ax[0][1], a1_slow_mean_df_sliced, -a1_slow_mean_df_sliced[ulog_error_y], a1_slow_std_df_sliced[ulog_error_y], label="X")
-plot_mean_std(ax[0][1], a1_slow_mean_df_sliced, a1_slow_mean_df_sliced[ulog_error_x], a1_slow_std_df_sliced[ulog_error_x], label="Y")
-plot_mean_std(ax[0][1], a1_slow_mean_df_sliced, a1_slow_mean_df_sliced[ulog_error_z], a1_slow_std_df_sliced[ulog_error_z], label="Z")
-
-ax[0][1].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[0][1].axvline(x=[4], color='0', ls='--', lw=2)
-ax[0][1].set_xlim(0, 15)
-ax[0][1].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-# ax[0][1].set_xlabel('Time [s]')
-ax[0][1].set_title("A1 Slow")
-
-a1_fast_mean_df_sliced = mean_df_a1_fast[0:15]
-a1_fast_std_df_sliced = std_df_a1_fast[0:15]
-plot_mean_std(ax[1][1], a1_fast_mean_df_sliced, -a1_fast_mean_df_sliced[ulog_error_y], a1_fast_std_df_sliced[ulog_error_y], label="X")
-plot_mean_std(ax[1][1], a1_fast_mean_df_sliced, a1_fast_mean_df_sliced[ulog_error_x], a1_fast_std_df_sliced[ulog_error_x], label="Y")
-plot_mean_std(ax[1][1], a1_fast_mean_df_sliced, a1_fast_mean_df_sliced[ulog_error_z], a1_fast_std_df_sliced[ulog_error_z], label="Z")
-
-ax[1][1].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[1][1].axvline(x=[4], color='0', ls='--', lw=2)
-ax[1][1].set_xlim(0, 15)
-# ax[1][1].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-# ax[0][1].set_xlabel('Time [s]')
-ax[1][1].set_title("A1 Fast")
-
-
-slow_turntable_mean_df_sliced = slow_turntable_mean_df[0:15]
-slow_turntable_std_df_sliced = slow_turntable_std_df[0:15]
-plot_mean_std(ax[2][1], slow_turntable_mean_df_sliced, slow_turntable_mean_df_sliced[ulog_error_x], slow_turntable_std_df_sliced[ulog_error_x], label="X")
-plot_mean_std(ax[2][1], slow_turntable_mean_df_sliced, slow_turntable_mean_df_sliced[ulog_error_y], slow_turntable_std_df_sliced[ulog_error_y], label="Y")
-plot_mean_std(ax[2][1], slow_turntable_mean_df_sliced, slow_turntable_mean_df_sliced[ulog_error_z], slow_turntable_std_df_sliced[ulog_error_z], label="Z")
-
-ax[2][1].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[2][1].axvline(x=[4], color='0', ls='--', lw=2)
-ax[2][1].set_xlim(0, 15)
-# ax[1][1].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-# ax[0][1].set_xlabel('Time [s]')
-ax[2][1].set_title("Turntable 0.5 m/s")
-
-
-mid_turntable_mean_df_sliced = mid_turntable_mean_df[0:15]
-mid_turntable_std_df_sliced = mid_turntable_std_df[0:15]
-plot_mean_std(ax[3][1], mid_turntable_mean_df_sliced, mid_turntable_mean_df_sliced[ulog_error_x], mid_turntable_std_df_sliced[ulog_error_x], label="X")
-plot_mean_std(ax[3][1], mid_turntable_mean_df_sliced, mid_turntable_mean_df_sliced[ulog_error_y], mid_turntable_std_df_sliced[ulog_error_y], label="Y")
-plot_mean_std(ax[3][1], mid_turntable_mean_df_sliced, mid_turntable_mean_df_sliced[ulog_error_z], mid_turntable_std_df_sliced[ulog_error_z], label="Z")
-
-ax[3][1].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[3][1].axvline(x=[4], color='0', ls='--', lw=2)
-ax[3][1].set_xlim(0, 15)
-# ax[1][1].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-# ax[0][1].set_xlabel('Time [s]')
-ax[3][1].set_title("Turntable 1.0 m/s")
-
-fast_turntable_mean_df_sliced = fast_turntable_mean_df[0:15]
-fast_turntable_std_df_sliced = fast_turntable_std_df[0:15]
-plot_mean_std(ax[4][1], fast_turntable_mean_df_sliced, fast_turntable_mean_df_sliced[ulog_error_x], fast_turntable_std_df_sliced[ulog_error_x], label="X")
-plot_mean_std(ax[4][1], fast_turntable_mean_df_sliced, fast_turntable_mean_df_sliced[ulog_error_y], fast_turntable_std_df_sliced[ulog_error_y], label="Y")
-plot_mean_std(ax[4][1], fast_turntable_mean_df_sliced, fast_turntable_mean_df_sliced[ulog_error_z], fast_turntable_std_df_sliced[ulog_error_z], label="Z")
-
-ax[4][1].axvline(x=[0], color='0.5', ls='--', lw=2)
-ax[4][1].axvline(x=[4], color='0', ls='--', lw=2)
-ax[4][1].set_xlim(0, 15)
-# ax[1][1].set_ylim(-0.25, 0.25)
-# autoscale_y(ax[0][0])
-# ax[0][0].set_ylabel('Pos. Errors [m]')
-ax[4][1].set_xlabel('Time [s]')
-ax[4][1].set_title("Turntable 1.5 m/s")
-
-
-fig.tight_layout()
-
-
-
-# -
-
-# # Vision Speed Composite
-
-ulog_location = "../vision_pepsi_2ms"
-ulog_result_location = "../log_output"
-bag_location = "../vision_pepsi_2ms"
-bag_result_location = "../vision_pepsi_2ms"
-dfs = create_dfs(ulog_location, ulog_result_location, 
-                 bag_location, bag_result_location, 
-                 alignment_topic=mavros_in_x)
-validate_alignment(dfs, mavros_in_x)
-
-# +
-for df in dfs:
-#     df = add_error_columns(df, [mavros_in_aligned_x, mavros_in_aligned_y, mavros_in_aligned_z],
-#                   [mocap_drone_x, mocap_drone_y, mocap_drone_z],
-#                   [alignment_error_x, alignment_error_y, alignment_error_z],
-#                    alignment_error_norm
-#                   )
-    
-    df = add_error_columns(df, 
-                  [mocap_gtsam_target_x, mocap_gtsam_target_y, mocap_gtsam_target_z],
-                  [mocap_target_x, mocap_target_y, mocap_target_z],
-                  [target_error_x, target_error_y, target_error_z],
-                           target_error_norm
-                  )
-    
-    df = add_error_columns(df, 
-              [mavros_in_x, mavros_in_y, mavros_in_z],
-              [mavros_drone_sp_x, mavros_drone_sp_y, mavros_drone_sp_z],
-              [tracking_error_x, tracking_error_y, tracking_error_z],
-                       tracking_error_norm
-              )
-    df = add_error_columns(df, [ulog_x, ulog_y, ulog_z],
-                  [ulog_sp_x, ulog_sp_y, ulog_sp_z],
-                  [ulog_error_x, ulog_error_y, ulog_error_z],
-                   ulog_pos_error_norm
-                  )
-    
-    df = add_error_columns(df, [ulog_vx, ulog_vy, ulog_vz],
-                  [ulog_sp_vx, ulog_sp_vy, ulog_sp_vz],
-                  [ulog_error_vx, ulog_error_vy, ulog_error_vz],
-                   ulog_vel_error_norm
-                  )
-        
-mean_df, std_df = get_aggregate_df(dfs)
-mean_df = mean_df[-5:8]
-std_df = std_df[-5:8]
-
-# +
-slow_img = plt.imread("../vision_pepsi_2ms/vision_pepsi_2ms.png")
-slow_img = slow_img[:1600,:]
-offset = 0.2
-sns.set(font_scale=1.2)
-def format_axes(fig):
-    labels = ["A","B", "C", "D", "E", "F", "G"]
-    for i, ax in enumerate(fig.axes):
-        ax.text(1.0, 1.0, labels[i], va="center", ha="center")
-#         ax.tick_params(labelbottom=False, labelleft=False)
-
-
-# gridspec inside gridspec
-fig = plt.figure(figsize=(20, 16))
-
-gs0 = gridspec.GridSpec(20, 16, figure=fig)
-ax1 = fig.add_subplot(gs0[:8,:12])
-# ax2 = fig.add_subplot(gs0[:8,6:12])
-pos = fig.add_subplot(gs0[8:14,:8])
-vel = fig.add_subplot(gs0[14:,:8])
-
-pos_err = fig.add_subplot(gs0[8:14,8:])
-vel_err = fig.add_subplot(gs0[14:,8:])
-bar = fig.add_subplot(gs0[:8,12:])
-
-# gs00 = gridspec.GridSpecFromSubplotSpec(3, 3, subplot_spec=gs0[0])
-
-# ax1 = fig.add_subplot(gs00[:-1, :])
-# ax2 = fig.add_subplot(gs00[-1, :-1])
-# ax3 = fig.add_subplot(gs00[-1, -1])
-
-# # the following syntax does the same as the GridSpecFromSubplotSpec call above:
-# gs01 = gs0[1].subgridspec(3, 3)
-
-# ax4 = fig.add_subplot(gs01[:, :-1])
-# ax5 = fig.add_subplot(gs01[:-1, -1])
-# ax6 = fig.add_subplot(gs01[-1, -1])
-
-# plt.suptitle("GridSpec Inside GridSpec")
-
-grasp_time = mean_df[mean_df[gripper_state] == 0].index[0]
-
-plot_mean_std(pos, mean_df, mean_df[mocap_drone_x], std_df[mocap_drone_x], label="Drone x")
-plot_mean_std(pos, mean_df, mean_df[mocap_drone_y], std_df[mocap_drone_y], label="Drone y")
-plot_mean_std(pos, mean_df, mean_df[mocap_drone_z], std_df[mocap_drone_z], label="Drone z")
-
-# plot_mean_std(pos, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_x], std_df[:grasp_time][mocap_target_x], label="Target x")
-# plot_mean_std(pos, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_y], std_df[:grasp_time][mocap_target_y], label="Target y")
-# plot_mean_std(pos, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_z] + offset, std_df[:grasp_time][mocap_target_z], label="Target z")
-pos.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-pos.legend()
-pos.set_ylabel("Position [m]")
-pos.tick_params(labelbottom=False)
-
-# plot_mean_std(vel, mean_df, mean_df[mocap_drone_vx], std_df[mocap_drone_x], label="Drone vx")
-# plot_mean_std(vel, mean_df, mean_df[mocap_drone_vy], std_df[mocap_drone_vy], label="Drone vy")
-# plot_mean_std(vel, mean_df, mean_df[mocap_drone_vz], std_df[mocap_drone_vz], label="Drone vz")
-plot_mean_std(vel, mean_df, mean_df[ulog_vy], std_df[ulog_vy], label="Drone vx")
-plot_mean_std(vel, mean_df, mean_df[ulog_vx], std_df[ulog_vx], label="Drone vy")
-plot_mean_std(vel, mean_df, -mean_df[ulog_vz], std_df[ulog_vz], label="Drone vz")
-
-
-
-# plot_mean_std(ax4, mean_df, mean_df[mocap_target_vx], std_df[mocap_target_vx], label="Target vx")
-# plot_mean_std(vel, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_vy], std_df[:grasp_time][mocap_target_vy], label="Target vy")
-# plot_mean_std(vel, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_vz], std_df[:grasp_time][mocap_target_vz], label="Target vz")
-vel.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-vel.set_ylabel("Velocity [m/s]")
-vel.legend()
-# ax3.tick_params(labelbottom=False)
-
-plot_mean_std(pos_err, mean_df, mean_df[ulog_pos_error_norm], std_df[ulog_pos_error_norm], label="Error")
-
-pos_err.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-pos_err.set_ylabel("Position Error [m]")
-# pos_err.yaxis.set_label_position("right")
-# pos_err.yaxis.tick_right()
-
-pos_err.tick_params(labelbottom=False)
-
-plot_mean_std(vel_err, mean_df, mean_df[ulog_vel_error_norm], std_df[ulog_vel_error_norm], label="Error")
-vel_err.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-vel_err.set_ylabel("Velocity Error [m/s]")
-# vel_err.yaxis.set_label_position("right")
-# vel_err.yaxis.tick_right()
-# vel_err.tick_params(labelbottom=False)
-
-
-N = 3
-vision = (10, 10, 8)
-mocap = (10, 9, 6)
-ind = np.arange(N)
-width = 0.3       
-
-# Plotting
-bar.bar(ind, vision , width, label='Vision')
-bar.bar(ind + width, mocap, width, label='Mocap')
-
-# plt.xlabel('Here goes x-axis label')
-plt.ylabel('Success')
-# plt.title('Here goes title of the plot')
-plt.xticks(ind + width / 2, ('0.5 m/s', '1.25 m/s', '2 m/s'))
-
-plt.legend(loc='best')
-bar.axhline(y=10, color='0', ls='--', lw=2)
-
-ax1.imshow(slow_img)
-ax1.grid(False)
-ax1.tick_params(labelbottom=False, labelleft=False)
-ax2.imshow(slow_img)
-ax2.grid(False)
-ax2.tick_params(labelbottom=False, labelleft=False)
-
-plt.tight_layout()
-# format_axes(fig)
-plt.show()
-# -
-
-# # Mocap Turntable Composite
-
-ulog_location = "../mocap_turntable_15ms"
-ulog_result_location = "../log_output"
-bag_location = "../mocap_turntable_15ms"
-bag_result_location = "../mocap_turntable_15ms"
-dfs = create_dfs(ulog_location, ulog_result_location, 
-                 bag_location, bag_result_location, 
-                 alignment_topic=mocap_drone_x)
-validate_alignment(dfs, mocap_drone_x)
-
-# +
-traj_dfs = get_trajectory_dfs(rosbags)
-evens_df = [traj_dfs[i] for i in range(0, len(traj_dfs), 2)]
-odds_df = [traj_dfs[i] for i in range(1, len(traj_dfs), 2)]
-
-add_velocities(evens_df)
-evens_mean_df, evens_std_df = get_aggregate_df(evens_df)
-evens_lower_df = evens_mean_df - evens_std_df
-evens_upper_df = evens_mean_df + evens_std_df
-
-add_velocities(odds_df)
-odds_mean_df, odds_std_df = get_aggregate_df(odds_df)
-odds_lower_df = odds_mean_df - odds_std_df
-odds_upper_df = odds_mean_df + odds_std_df
-
-
-# +
-for df in dfs:
-    df = add_error_columns(df, [ulog_x, ulog_y, ulog_z],
-                  [ulog_sp_x, ulog_sp_y, ulog_sp_z],
-                  [ulog_error_x, ulog_error_y, ulog_error_z],
-                   ulog_pos_error_norm
-                  )
-    
-    df = add_error_columns(df, [ulog_vx, ulog_vy, ulog_vz],
-                  [ulog_sp_vx, ulog_sp_vy, ulog_sp_vz],
-                  [ulog_error_vx, ulog_error_vy, ulog_error_vz],
-                   ulog_vel_error_norm
-                  )
-
-add_velocities(dfs)
-evens_dfs = [dfs[i] for i in range(0, len(dfs), 2)]
-odds_df = [dfs[i] for i in range(1, len(dfs), 2)]
-mean_df, std_df = get_aggregate_df(evens_dfs)
-mean_df = mean_df[-5:8]
-std_df = std_df[-5:8]
-
-# +
-slow_img = plt.imread("../mocap_turntable_15ms/15ms.png")
-slow_img = slow_img[:1600,:]
-offset = 0.2
-sns.set(font_scale=1.2)
-def format_axes(fig):
-    labels = ["A","B", "C", "D", "E", "F", "G"]
-    for i, ax in enumerate(fig.axes):
-        ax.text(1.0, 1.0, labels[i], va="center", ha="center")
-#         ax.tick_params(labelbottom=False, labelleft=False)
-
-
-# gridspec inside gridspec
-fig = plt.figure(figsize=(20, 16))
-
-gs0 = gridspec.GridSpec(20, 16, figure=fig)
-ax1 = fig.add_subplot(gs0[:8,:12])
-# ax2 = fig.add_subplot(gs0[:8,6:12])
-pos = fig.add_subplot(gs0[8:14,:8])
-vel = fig.add_subplot(gs0[14:,:8])
-
-pos_err = fig.add_subplot(gs0[8:14,8:])
-vel_err = fig.add_subplot(gs0[14:,8:])
-ax5 = fig.add_subplot(gs0[:8,12:])
-
-# gs00 = gridspec.GridSpecFromSubplotSpec(3, 3, subplot_spec=gs0[0])
-
-# ax1 = fig.add_subplot(gs00[:-1, :])
-# ax2 = fig.add_subplot(gs00[-1, :-1])
-# ax3 = fig.add_subplot(gs00[-1, -1])
-
-# # the following syntax does the same as the GridSpecFromSubplotSpec call above:
-# gs01 = gs0[1].subgridspec(3, 3)
-
-# ax4 = fig.add_subplot(gs01[:, :-1])
-# ax5 = fig.add_subplot(gs01[:-1, -1])
-# ax6 = fig.add_subplot(gs01[-1, -1])
-
-# plt.suptitle("GridSpec Inside GridSpec")
-
-grasp_time = mean_df[mean_df[gripper_state] == 0].index[0]
-
-plot_mean_std(pos, mean_df, mean_df[mocap_drone_x], std_df[mocap_drone_x], label="Drone x")
-plot_mean_std(pos, mean_df, mean_df[mocap_drone_y], std_df[mocap_drone_y], label="Drone y")
-plot_mean_std(pos, mean_df, mean_df[mocap_drone_z], std_df[mocap_drone_z], label="Drone z")
-
-plot_mean_std(pos, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_x], std_df[:grasp_time][mocap_target_x], label="Target x")
-plot_mean_std(pos, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_y], std_df[:grasp_time][mocap_target_y], label="Target y")
-plot_mean_std(pos, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_z] + offset, std_df[:grasp_time][mocap_target_z], label="Target z")
-pos.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-pos.legend()
-pos.set_ylabel("Position [m]")
-pos.tick_params(labelbottom=False)
-
-# plot_mean_std(vel, mean_df, mean_df[mocap_drone_vx], std_df[mocap_drone_x], label="Drone vx")
-# plot_mean_std(vel, mean_df, mean_df[mocap_drone_vy], std_df[mocap_drone_vy], label="Drone vy")
-# plot_mean_std(vel, mean_df, mean_df[mocap_drone_vz], std_df[mocap_drone_vz], label="Drone vz")
-plot_mean_std(vel, mean_df, mean_df[ulog_vx], std_df[ulog_vx], label="Drone vy")
-plot_mean_std(vel, mean_df, -mean_df[ulog_vz], std_df[ulog_vz], label="Drone vz")
-plot_mean_std(vel, mean_df, mean_df[ulog_vy], std_df[ulog_vy], label="Drone vx")
-
-plot_mean_std(ax4, mean_df, mean_df[mocap_target_vx], std_df[mocap_target_vx], label="Target vx")
-plot_mean_std(vel, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_vy], std_df[:grasp_time][mocap_target_vy], label="Target vy")
-plot_mean_std(vel, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_vz], std_df[:grasp_time][mocap_target_vz], label="Target vz")
-vel.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-vel.set_ylabel("Velocity [m/s]")
-vel.legend()
-# ax3.tick_params(labelbottom=False)
-
-plot_mean_std(pos_err, mean_df, mean_df[ulog_pos_error_norm], std_df[ulog_pos_error_norm], label="Error")
-
-pos_err.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-pos_err.set_ylabel("Position Error [m]")
-# pos_err.yaxis.set_label_position("right")
-# pos_err.yaxis.tick_right()
-
-pos_err.tick_params(labelbottom=False)
-
-plot_mean_std(vel_err, mean_df, mean_df[ulog_vel_error_norm], std_df[ulog_vel_error_norm], label="Error")
-vel_err.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-vel_err.set_ylabel("Velocity Error [m/s]")
-# vel_err.yaxis.set_label_position("right")
-# vel_err.yaxis.tick_right()
-# vel_err.tick_params(labelbottom=False)
-
-
-ax5.bar(["0.5 m/s", "1 m/s", "1.5 m/s"], [10, 9, 7])
-ax5.set(ylabel="Successes")
-ax5.axhline(y=10, color='0', ls='--', lw=2)
-
-ax1.imshow(slow_img)
-ax1.grid(False)
-ax1.tick_params(labelbottom=False, labelleft=False)
-ax2.imshow(slow_img)
-ax2.grid(False)
-ax2.tick_params(labelbottom=False, labelleft=False)
-
-plt.tight_layout()
-# format_axes(fig)
-plt.show()
-
-# +
-ulog_location = "../mocap_a1_slow"
-ulog_result_location = "../mocap_a1_slow"
-bag_location = "../mocap_a1_slow"
-bag_result_location = "../mocap_a1_slow"
-rosbags = load_rosbags(bag_result_location, bag_location)position_topics = ["sparksdrone-world-pose.position.x",
-                   "sparksdrone-world-pose.position.y",
-                   "sparksdrone-world-pose.position.z",
-                   "sparkgrasptar-world-pose.position.x",
-                   "sparkgrasptar-world-pose.position.y",
-                   "sparkgrasptar-world-pose.position.z"]
-
-velocity_topics = ["sparksdrone-world-pose.velocity.x",
-                   "sparksdrone-world-pose.velocity.y",
-                   "sparksdrone-world-pose.velocity.z",
-                   "sparkgrasptar-world-pose.velocity.x",
-                   "sparkgrasptar-world-pose.velocity.y",
-                   "sparkgrasptar-world-pose.velocity.z",
-                   "gtsam_tracker_node-target_global_odom_estimate-twist.twist.linear.x",
-                   "gtsam_tracker_node-target_global_odom_estimate-twist.twist.linear.y",
-                   "gtsam_tracker_node-target_global_odom_estimate-twist.twist.linear.z"]
-
-fig, ax = plt.subplots(1, 2, figsize=(15,5))
-evens_mean_df.plot(x="times", y=position_topics, ax=ax[0])
-plot_std(ax[0], evens_mean_df, evens_lower_df, evens_upper_df, position_topics)
-ax[0].legend(["Drone X", "Drone Y", "Drone Z", "Target X", "Target Y", "Target Z"])
-# ax[0].axvline(x=evens_mean_df[, color='b', label='axvline - full height')
-
-evens_mean_df.plot(x="times", y=velocity_topics, ax=ax[1])
-plot_std(ax[1], evens_mean_df, evens_lower_df, evens_upper_df, velocity_topics)
-ax[1].legend(["Drone Vx", "Drone Vy", "Drone Vz", "Target Vx", "Target Vy", "Target Vz"])
-
-
-fig, ax = plt.subplots(1, 2, figsize=(15,5))
-odds_mean_df.plot(x="times", y=position_topics, ax=ax[0])
-plot_std(ax[0], odds_mean_df, odds_lower_df, odds_upper_df, position_topics)
-ax[0].legend(["Drone X", "Drone Y", "Drone Z", "Target X", "Target Y", "Target Z"])
-
-evens_mean_df.plot(x="times", y=velocity_topics, ax=ax[1])
-plot_std(ax[1], odds_mean_df, odds_lower_df, odds_upper_df, velocity_topics)
-ax[1].legend(["Drone Vx", "Drone Vy", "Drone Vz", "Target Vx", "Target Vy", "Target Vz"])
-
-# -
-
-# # Mocap A1 Composite
-
-ulog_location = "../mocap_a1_fast"
-ulog_result_location = "../log_output"
-bag_location = "../mocap_a1_fast"
-bag_result_location = "../mocap_a1_fast"
-dfs = create_dfs(ulog_location, ulog_result_location, 
-                 bag_location, bag_result_location, 
-                 alignment_topic=mocap_drone_x)
-validate_alignment(dfs, mocap_drone_x)
-
-# +
-for df in dfs:
-    df = add_error_columns(df, [ulog_x, ulog_y, ulog_z],
-                  [ulog_sp_x, ulog_sp_y, ulog_sp_z],
-                  [ulog_error_x, ulog_error_y, ulog_error_z],
-                   ulog_pos_error_norm
-                  )
-    
-    df = add_error_columns(df, [ulog_vx, ulog_vy, ulog_vz],
-                  [ulog_sp_vx, ulog_sp_vy, ulog_sp_vz],
-                  [ulog_error_vx, ulog_error_vy, ulog_error_vz],
-                   ulog_vel_error_norm
-                  )
-
-add_velocities(dfs)
-mean_df, std_df = get_aggregate_df(dfs)
-mean_df = mean_df[-3:8]
-std_df = std_df[-3:8]
-# -
-
-for col in dfs[0].columns:
-    print(col)
-
-# +
-slow_img = plt.imread("../mocap_a1_slow/timelapse.png")
-slow_img = slow_img[:1600,:]
-offset = 0.2
-sns.set(font_scale=1.2)
-def format_axes(fig):
-    labels = ["A","B", "C", "D", "E", "F", "G"]
-    for i, ax in enumerate(fig.axes):
-        ax.text(1.0, 1.0, labels[i], va="center", ha="center")
-#         ax.tick_params(labelbottom=False, labelleft=False)
-
-
-# gridspec inside gridspec
-fig = plt.figure(figsize=(20, 16))
-
-gs0 = gridspec.GridSpec(20, 16, figure=fig)
-ax1 = fig.add_subplot(gs0[:8,:12])
-# ax2 = fig.add_subplot(gs0[:8,6:12])
-pos = fig.add_subplot(gs0[8:14,:8])
-vel = fig.add_subplot(gs0[14:,:8])
-
-pos_err = fig.add_subplot(gs0[8:14,8:])
-vel_err = fig.add_subplot(gs0[14:,8:])
-ax5 = fig.add_subplot(gs0[:8,12:])
-
-# gs00 = gridspec.GridSpecFromSubplotSpec(3, 3, subplot_spec=gs0[0])
-
-# ax1 = fig.add_subplot(gs00[:-1, :])
-# ax2 = fig.add_subplot(gs00[-1, :-1])
-# ax3 = fig.add_subplot(gs00[-1, -1])
-
-# # the following syntax does the same as the GridSpecFromSubplotSpec call above:
-# gs01 = gs0[1].subgridspec(3, 3)
-
-# ax4 = fig.add_subplot(gs01[:, :-1])
-# ax5 = fig.add_subplot(gs01[:-1, -1])
-# ax6 = fig.add_subplot(gs01[-1, -1])
-
-# plt.suptitle("GridSpec Inside GridSpec")
-
-grasp_time = mean_df[mean_df[gripper_state] == 0].index[0]
-
-# plot_mean_std(ax3, mean_df, mean_df[mocap_drone_x], std_df[mocap_drone_x], label="Drone x")
-plot_mean_std(pos, mean_df, mean_df[mocap_drone_y], std_df[mocap_drone_y], label="Drone y")
-plot_mean_std(pos, mean_df, mean_df[mocap_drone_z], std_df[mocap_drone_z], label="Drone z")
-
-# plot_mean_std(ax3, mean_df, mean_df[mocap_target_x], std_df[mocap_target_x], label="Target x")
-plot_mean_std(pos, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_y], std_df[:grasp_time][mocap_target_y], label="Target y")
-plot_mean_std(pos, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_z] + offset, std_df[:grasp_time][mocap_target_z], label="Target z")
-pos.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-pos.legend()
-pos.set_ylabel("Position [m]")
-pos.tick_params(labelbottom=False)
-
-# plot_mean_std(ax4, mean_df, mean_df[mocap_drone_vx], std_df[mocap_drone_x], label="Drone vx")
-# plot_mean_std(vel, mean_df, mean_df[mocap_drone_vy], std_df[mocap_drone_vy], label="Drone vy")
-# plot_mean_std(vel, mean_df, mean_df[mocap_drone_vz], std_df[mocap_drone_vz], label="Drone vz")
-plot_mean_std(vel, mean_df, mean_df[ulog_vx], std_df[ulog_vx], label="Drone vy")
-plot_mean_std(vel, mean_df, -mean_df[ulog_vz], std_df[ulog_vz], label="Drone vz")
-
-# plot_mean_std(ax4, mean_df, mean_df[mocap_target_vx], std_df[mocap_target_vx], label="Target vx")
-plot_mean_std(vel, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_vy], std_df[:grasp_time][mocap_target_vy], label="Target vy")
-plot_mean_std(vel, mean_df[:grasp_time], mean_df[:grasp_time][mocap_target_vz], std_df[:grasp_time][mocap_target_vz], label="Target vz")
-vel.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-vel.set_ylabel("Velocity [m/s]")
-vel.legend()
-# ax3.tick_params(labelbottom=False)
-
-plot_mean_std(pos_err, mean_df, mean_df[ulog_pos_error_norm], std_df[ulog_pos_error_norm], label="Error")
-
-pos_err.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-pos_err.set_ylabel("Position Error [m]")
-# pos_err.yaxis.set_label_position("right")
-# pos_err.yaxis.tick_right()
-
-pos_err.tick_params(labelbottom=False)
-
-plot_mean_std(vel_err, mean_df, mean_df[ulog_vel_error_norm], std_df[ulog_vel_error_norm], label="Error")
-vel_err.axvline(x=[mean_df[mean_df[gripper_state] == 0].index[0]], color='0', ls='--', lw=2)
-vel_err.set_ylabel("Velocity Error [m/s]")
-# vel_err.yaxis.set_label_position("right")
-# vel_err.yaxis.tick_right()
-# vel_err.tick_params(labelbottom=False)
-
-
-ax5.bar(["Slow", "Fast"], [10,6])
-ax5.set(ylabel="Successes")
-ax5.axhline(y=10, color='0', ls='--', lw=2)
-
-ax1.imshow(slow_img)
-ax1.grid(False)
-ax1.tick_params(labelbottom=False, labelleft=False)
-ax2.imshow(slow_img)
-ax2.grid(False)
-ax2.tick_params(labelbottom=False, labelleft=False)
-
-plt.tight_layout()
-# format_axes(fig)
-plt.show()
-# -
-
-ulog_location = "../mocap_a1_slow"
-ulog_result_location = "../mocap_a1_slow"
-bag_location = "../mocap_a1_slow"
-bag_result_location = "../mocap_a1_slow"
-rosbags = load_rosbags(bag_result_location, bag_location)
-
-traj_dfs = get_trajectory_dfs(rosbags)
-add_velocities(traj_dfs)
-mean_df, std_df = get_aggregate_df(traj_dfs)
-lower_df = mean_df - std_df
-upper_df = mean_df + std_df
-
-# +
-position_topics = ["sparksdrone-world-pose.position.x",
-                   "sparksdrone-world-pose.position.y",
-                   "sparksdrone-world-pose.position.z",
-                   "sparkgrasptar-world-pose.position.x",
-                   "sparkgrasptar-world-pose.position.y",
-                   "sparkgrasptar-world-pose.position.z"]
-
-velocity_topics = ["sparksdrone-world-pose.velocity.x",
-                   "sparksdrone-world-pose.velocity.y",
-                   "sparksdrone-world-pose.velocity.z",
-                   "sparkgrasptar-world-pose.velocity.x",
-                   "sparkgrasptar-world-pose.velocity.y",
-                   "sparkgrasptar-world-pose.velocity.z"]
-
-fig, ax = plt.subplots(1, 2, figsize=(15,5))
-mean_df.plot(x="times", y=position_topics, ax=ax[0])
-plot_std(ax[0], mean_df, lower_df, upper_df, position_topics)
-ax[0].legend(["Drone X", "Drone Y", "Drone Z", "Target X", "Target Y", "Target Z"])
-
-mean_df.plot(x="times", y=velocity_topics, ax=ax[1])
-plot_std(ax[1], mean_df, lower_df, upper_df, velocity_topics)
-ax[1].legend(["Drone Vx", "Drone Vy", "Drone Vz", "Target Vx", "Target Vy", "Target Vz"])
-# -
-
-# # Mocap A1 Fast
-
-ulog_location = "../mocap_a1_fast"
-ulog_result_location = "../mocap_a1_fast"
-bag_location = "../mocap_a1_fast"
-bag_result_location = "../mocap_a1_fast"
-rosbags = load_rosbags(bag_result_location, bag_location)
-
-traj_dfs = get_trajectory_dfs(rosbags)
-add_velocities(traj_dfs)
-mean_df, std_df = get_aggregate_df(traj_dfs)
-lower_df = mean_df - std_df
-upper_df = mean_df + std_df
-
-# +
-position_topics = ["sparksdrone-world-pose.position.x",
-                   "sparksdrone-world-pose.position.y",
-                   "sparksdrone-world-pose.position.z",
-                   "sparkgrasptar-world-pose.position.x",
-                   "sparkgrasptar-world-pose.position.y",
-                   "sparkgrasptar-world-pose.position.z"]
-
-velocity_topics = ["sparksdrone-world-pose.velocity.x",
-                   "sparksdrone-world-pose.velocity.y",
-                   "sparksdrone-world-pose.velocity.z",
-                   "sparkgrasptar-world-pose.velocity.x",
-                   "sparkgrasptar-world-pose.velocity.y",
-                   "sparkgrasptar-world-pose.velocity.z"]
-
-fig, ax = plt.subplots(1, 2, figsize=(15,5))
-mean_df.plot(x="times", y=position_topics, ax=ax[0])
-plot_std(ax[0], mean_df, lower_df, upper_df, position_topics)
-ax[0].legend(["Drone X", "Drone Y", "Drone Z", "Target X", "Target Y", "Target Z"])
-
-mean_df.plot(x="times", y=velocity_topics, ax=ax[1])
-plot_std(ax[1], mean_df, lower_df, upper_df, velocity_topics)
-ax[1].legend(["Drone Vx", "Drone Vy", "Drone Vz", "Target Vx", "Target Vy", "Target Vz"])
-# -
-
-# # Vision Pepsi 2 m/s
-
-ulog_location = "../vision_pepsi_2ms"
-ulog_result_location = "../vision_pepsi_2ms"
-bag_location = "../vision_pepsi_2ms"
-bag_result_location = "../vision_pepsi_2ms"
-rosbags = load_rosbags(bag_result_location, bag_location)
-
-# +
-board_to_target = [0.017, -0.183, 0.116]
-fig, ax = plt.subplots(1, 1, figsize=(15,5))
-for rosbag in rosbags:
-    rosbag["times"] = [0.01 * i for i in range(len(rosbag))]
-    rosbag["start"] = rosbag["grasp_state_machine_node-grasp_started-data"] - 4
-    rosbag["aligned_mavros_y"] = -rosbag["mavros-odometry-out-pose.pose.position.y"]
-    rosbag["target_x_gt"] = rosbag["sparkgrasptar-world-pose.position.x"] + board_to_target[0]
-    rosbag["target_y_gt"] = rosbag["sparkgrasptar-world-pose.position.y"] + board_to_target[1]
-    rosbag["target_z_gt"] = rosbag["sparkgrasptar-world-pose.position.z"] + board_to_target[2]
-    rosbag["t265_to_mocap_x"] = rosbag["mavros-odometry-in-pose.pose.position.x"] + rosbag["sparksdrone-world-pose.position.x"].dropna()[0]
-    rosbag["t265_to_mocap_y"] = rosbag["mavros-odometry-in-pose.pose.position.y"] + rosbag["sparksdrone-world-pose.position.y"].dropna()[1]
-    rosbag["t265_to_mocap_z"] = rosbag["mavros-odometry-in-pose.pose.position.z"] + rosbag["sparksdrone-world-pose.position.z"].dropna()[2]
-    rosbag.plot(x="times", y=["gtsam_tracker_node_secondary-teaser_global-pose.position.x",
-                             "gtsam_tracker_node_secondary-teaser_global-pose.position.y",
-                             "gtsam_tracker_node_secondary-teaser_global-pose.position.z"], ax=ax)
-    
-fig, ax = plt.subplots(1, 1, figsize=(15,5))
-
-# +
-
-
-mean_df, std_df = get_aggregate_df(rosbags)
-lower_df = mean_df - std_df
-upper_df = mean_df + std_df
-
-position_topics = [
-                "start",
-#         "sparksdrone-world-pose.position.x",
-#                    "sparksdrone-world-pose.position.y",
-#                    "sparksdrone-world-pose.position.z",
-#     "gtsam_tracker_node_secondary-teaser_global-pose.position.x",
-                   "gtsam_tracker_node-teaser_global-pose.position.y",
-    "mavros-odometry-in-pose.pose.position.y",
-    "aligned_mavros_y",
-#                    "gtsam_tracker_node_secondary-teaser_global-pose.position.z",
-#                    "target_x_gt",
-#                    "target_y_gt",
-#                    "target_z_gt",
-#                     "t265_to_mocap_y",
-    "gtsam_tracker_node-target_global_odom_estimate-pose.pose.position.y"
-                  ]
-
-fig, ax = plt.subplots(1, 1, figsize=(25,15))
-rosbags[0].plot(x="times", y=position_topics, ax=ax)
-plt.ylim([0.4, 0.7])
-# plot_std(ax, mean_df, lower_df, upper_df, position_topics)
-# ax[0].legend(["Target X", "Target Y", "Target Z"])
-
-
-
-# +
-position_topics = [
-#     "sparksdrone-world-pose.position.x",
-                   "sparksdrone-world-pose.position.y",
-#                    "sparksdrone-world-pose.position.z",
-#                    "mavros-odometry-in-pose.pose.position.x",
-#                    "mavros-odometry-in-pose.pose.position.y",
-#                    "mavros-odometry-in-pose.pose.position.z",
-#                    "t265_to_mocap_x",
-                   "t265_to_mocap_y",
-#                    "t265_to_mocap_z",
-                   
-                  ]
-
-fig, ax = plt.subplots(1, 2, figsize=(15,5))
-mean_df.plot(x="times", y=position_topics, ax=ax[0])
-plot_std(ax[0], mean_df, lower_df, upper_df, position_topics)
-ax[0].legend(["Mocap X", "Mocap Y", "Mocap Z", "T265 X", "T265 Y", "T265 Z"])
-
-
-# +
-position_topics = ["sparksdrone-world-pose.orientation.w",
-                   "sparksdrone-world-pose.orientation.x",
-                   "sparksdrone-world-pose.orientation.y",
-                   
-#                    "mavros-odometry-in-pose.pose.position.x",
-#                    "mavros-odometry-in-pose.pose.position.y",
-#                    "mavros-odometry-in-pose.pose.position.z",
-                   "t265_to_mocap_x",
-                   "t265_to_mocap_y",
-                   "t265_to_mocap_z",
-                   
-                  ]
-
-fig, ax = plt.subplots(1, 2, figsize=(15,5))
-mean_df.plot(x="times", y=position_topics, ax=ax[0])
-plot_std(ax[0], mean_df, lower_df, upper_df, position_topics)
-ax[0].legend(["Mocap X", "Mocap Y", "Mocap Z", "T265 X", "T265 Y", "T265 Z"])
-
-# +
-
-
-mean_df, std_df = get_aggregate_df(rosbags)
-lower_df = mean_df - std_df
-upper_df = mean_df + std_df
-position_topics = [
-#                    "gtsam_tracker_node_secondary-teaser_global-pose.orientation.w",
-                   "gtsam_tracker_node_secondary-teaser_global-pose.orientation.x",
-                   "gtsam_tracker_node_secondary-teaser_global-pose.orientation.y",
-    "gtsam_tracker_node_secondary-teaser_global-pose.orientation.z",
-                  ]
-
-fig, ax = plt.subplots(1, 1, figsize=(15,10))
-mean_df.plot(x="times", y=position_topics, ax=ax)
-plot_std(ax, mean_df, lower_df, upper_df, position_topics)
-ax.legend(["Target w", "Target x", "Target y", "Target z"])
-
-
-# -
-
-# # Vision Medkit 0.5 m/s
-
-ulog_location = "../vision_pepsi_2ms"
-ulog_result_location = "../vision_pepsi_2ms"
-bag_location = "../vision_medkit_05ms"
-bag_result_location = "../vision_medkit_05ms"
-rosbags = load_rosbags(bag_result_location, bag_location)
-
-# +
-
-fig, ax = plt.subplots(1, 1, figsize=(15,5))
-for rosbag in rosbags:
-    rosbag["times"] = [0.01 * i for i in range(len(rosbag))]
-    rosbag["start"] = rosbag["grasp_state_machine_node-grasp_started-data"] - 4
-    rosbag["target_error"] = np.linalg.norm([rosbag["gtsam_tracker_node_secondary-target_global_odom_estimate-pose.pose.position.x"] \
-                                             - rosbag["sparkgrasptar-world-pose.position.x"], \
-                                             rosbag["gtsam_tracker_node_secondary-target_global_odom_estimate-pose.pose.position.y"] \
-                                             - rosbag["sparkgrasptar-world-pose.position.y"], \
-                                             rosbag["gtsam_tracker_node_secondary-target_global_odom_estimate-pose.pose.position.z"] \
-                                             - rosbag["sparkgrasptar-world-pose.position.z"]], axis=0)
-    
-    rosbag["t265_to_mocap_x"] = rosbag["mavros-odometry-in-pose.pose.position.x"] + rosbag["sparksdrone-world-pose.position.x"].dropna()[0]
-    rosbag["t265_to_mocap_y"] = rosbag["mavros-odometry-in-pose.pose.position.y"] + rosbag["sparksdrone-world-pose.position.y"].dropna()[1]
-    rosbag["t265_to_mocap_z"] = rosbag["mavros-odometry-in-pose.pose.position.z"] + rosbag["sparksdrone-world-pose.position.z"].dropna()[2]
-    
-    rosbag["vio_error"] = np.linalg.norm([rosbag["t265_to_mocap_x"] \
-                                             - rosbag["sparksdrone-world-pose.position.x"], \
-                                             rosbag["t265_to_mocap_y"] \
-                                             - rosbag["sparksdrone-world-pose.position.y"], \
-                                             rosbag["t265_to_mocap_z"] \
-                                             - rosbag["sparksdrone-world-pose.position.z"]], axis=0)
-    
-    rosbag["tracking_error"] = np.linalg.norm([-rosbag["mavros-odometry-out-pose.pose.position.x"] \
-                                             - rosbag["mavros-setpoint_raw-local-position.x"], \
-                                             -rosbag["mavros-odometry-out-pose.pose.position.y"] \
-                                             - rosbag["mavros-setpoint_raw-local-position.y"], \
-                                             rosbag["mavros-odometry-out-pose.pose.position.z"] \
-                                             - rosbag["mavros-setpoint_raw-local-position.z"]], axis=0)
-    
-    
-    
-    rosbag["aligned_mavros_y"] = -rosbag["mavros-odometry-out-pose.pose.position.y"]
-
-    rosbag.plot(x="times", y=["gtsam_tracker_node_secondary-teaser_global-pose.position.x",
-                             "gtsam_tracker_node_secondary-teaser_global-pose.position.y",
-                             "gtsam_tracker_node_secondary-teaser_global-pose.position.z"], ax=ax)
-    
-fig, ax = plt.subplots(1, 1, figsize=(15,5))
-# -
-
-mean_df, std_df = get_aggregate_df(rosbags)
-lower_df = mean_df - std_df
-upper_df = mean_df + std_df
-
-rosbags[0]["gtsam_tracker_node_secondary-teaser_global-pose.position.x"]
-# rosbags[0]["sparkgrasptar-world-pose.position.x"]
-
-# +
-fig, ax = plt.subplots(1, 1, figsize=(15,5))
-error = np.linalg.norm([rosbags[0]["gtsam_tracker_node_secondary-teaser_global-pose.position.x"] \
-                                             - rosbags[0]["sparkgrasptar-world-pose.position.x"], \
-                                             rosbags[0]["gtsam_tracker_node_secondary-teaser_global-pose.position.y"] \
-                                             - rosbags[0]["sparkgrasptar-world-pose.position.y"], \
-                                             rosbags[0]["gtsam_tracker_node_secondary-teaser_global-pose.position.z"] \
-                                             - rosbags[0]["sparkgrasptar-world-pose.position.z"]], axis=0)
-
-# ax.plot(rosbags[0]["times"], error)
-p1 = ax.plot(mean_df["times"], mean_df["target_error"], label="Target Error")
-p2 = ax.fill_between(mean_df["times"], lower_df["target_error"], upper_df["target_error"], alpha=0.5, linewidth=0)
-# plot_std(ax, mean_df, lower_df, upper_df, ["target_error"])
-
-p3 = ax.plot(mean_df["times"], mean_df["vio_error"], label="VIO Error")
-# plot_std(ax, mean_df, lower_df, upper_df, ["vio_error"])
-p4 = ax.fill_between(mean_df["times"], lower_df["vio_error"], upper_df["vio_error"], alpha=0.5, linewidth=0)
-
-p5 = ax.plot(mean_df["times"], mean_df["tracking_error"], label="Tracking Error")
-p6 = ax.fill_between(mean_df["times"], lower_df["tracking_error"], upper_df["tracking_error"], alpha=0.5, linewidth=0)
-
-ax.plot(mean_df["times"], mean_df["grasp_state_machine_node-grasp_started-data"] - 0.5)
-# plot_std(ax, mean_df, lower_df, upper_df, ["grasp_state_machine_node-grasp_started-data"])
-
-
-ax.set_xlim(10,60)
-ax.set_ylim(0,0.2)
-# ax.legend(["Target Error", "VIO Error", "Tracking Error"])
-ax.legend()
-# -
-
-for col in mean_df.columns:
-    print(col)
-
-mean_df.plot(x="times", y=["mavros-odometry-out-pose.pose.position.z",
-                             "mavros-setpoint_raw-local-position.z"])
-
-
